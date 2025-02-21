@@ -1,0 +1,11 @@
+# Ignore all pickle files, which are usually created during debugging.
+*.pkl
+# Ignore all test files (.py or .ipynb) which are usually used for debugging. 
+test.*
+test*
+# Ignore the Pycash directory. 
+__pycache__/
+# Ignore the Figure directory (which saves figures during the development phase)
+figures/
+# Ignore the development folder (which includes the Jupyter Notebooks during the development)
+development/
