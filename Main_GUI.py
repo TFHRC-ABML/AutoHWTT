@@ -12,8 +12,10 @@ import numpy as np
 from PyQt5.QtWidgets import QApplication, QPushButton, QVBoxLayout, QHBoxLayout, QDialog, QTextEdit
 from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtCore import Qt
+from scripts.Alg01_UtilityFunctions import ScrollableMessageBox
+from scripts.Alg02_SQL_Manager import Create_SQLite3_HWTT_DB_Connect
 from scripts.GUI01_HWTT_Welcome import HWTT_WelcomePage
-# from scripts.Sub02_CreateNewSQLTable import Create_SQLite3_DB_Connect
+from scripts.GUI02_MainPage import Main_Window
 # from scripts.Sub03_MainPage import Main_Window
 
 
@@ -34,53 +36,25 @@ def main():
     if (not Welcome.DB_FileName) or (not Welcome.DB_Folder):
         app.quit()
         return
-    # # ------------------------------------------------------------------------------------------------------------------
-    # # Step 02: Check if the database is already existed (load the database) or create a new database.
-    # if os.path.isfile(os.path.join(DB_Folder, DB_FileName + '.db')):
-    #     # Load the database. 
-    #     conn = sqlite3.connect(os.path.join(DB_Folder, DB_FileName + '.db'))
-    #     cursor = conn.cursor()
-    # else:
-    #     # Create the database and connect the SQL courser. 
-    #     conn, cursor = Create_SQLite3_DB_Connect(os.path.join(DB_Folder, DB_FileName + '.db'))
-    # # ------------------------------------------------------------------------------------------------------------------
-    # # Step 03: Create a new window for the loaded/created database with more options (Actual program).
-    # Main = Main_Window(conn, cursor, DB_FileName, DB_Folder)
-    # Main.show()
+    # ------------------------------------------------------------------------------------------------------------------
+    # Step 02: Check if the database is already existed (load the database) or create a new database.
+    if os.path.isfile(os.path.join(DB_Folder, DB_FileName + '.db')):
+        # Load the database. 
+        conn = sqlite3.connect(os.path.join(DB_Folder, DB_FileName + '.db'))
+        cursor = conn.cursor()
+    else:
+        # Create the database and connect the SQL courser. 
+        conn, cursor = Create_SQLite3_HWTT_DB_Connect(os.path.join(DB_Folder, DB_FileName + '.db'))
+    # ------------------------------------------------------------------------------------------------------------------
+    # Step 03: Create a new window for the loaded/created database with more options (Actual program).
+    Main = Main_Window(conn, cursor, DB_FileName, DB_Folder)
+    Main.show()
     app.exec()
     # ------------------------------------------------------------------------------------------------------------------
-    # # Quit the application (and connection to SQL) and return Nothing. 
-    # conn.close()
+    # Quit the application (and connection to SQL) and return Nothing. 
+    conn.close()
     app.quit()
     return 
-# ======================================================================================================================
-# ======================================================================================================================
-# ======================================================================================================================
-
-
-class ScrollableMessageBox(QDialog):
-    def __init__(self, text, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("HWTT Analysis Tool - Agreement")
-        self.resize(700, 500)
-        layout = QVBoxLayout(self)
-        # Create a scrollable text area
-        text_edit = QTextEdit(self)
-        text_edit.setPlainText(text)
-        text_edit.setReadOnly(True)
-        text_edit.setMinimumSize(380, 200)
-        layout.addWidget(text_edit)
-        # Create buttons
-        btn_accept = QPushButton("Accept", self)
-        btn_exit = QPushButton("Exit", self)
-        btn_accept.clicked.connect(self.accept)
-        btn_exit.clicked.connect(self.reject)
-        btn_accept.setFixedSize(100, 40)
-        btn_exit.setFixedSize(100, 40)
-        BottonLayout = QHBoxLayout()
-        BottonLayout.addWidget(btn_accept)
-        BottonLayout.addWidget(btn_exit)
-        layout.addLayout(BottonLayout)
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================

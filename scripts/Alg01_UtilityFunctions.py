@@ -1,0 +1,119 @@
+# Title: This script include utility functions used within HWTT Analysis Tool.
+#
+# Author: Farhad Abdollahi (farhad.abdollahi.ctr@dot.gov)
+# Date: 02/21/2025
+# ======================================================================================================================
+
+# Importing the required libraries.
+import re
+import numpy as np
+from PyQt5.QtWidgets import QApplication, QPushButton, QVBoxLayout, QHBoxLayout, QDialog, QTextEdit
+
+
+
+
+class ScrollableMessageBox(QDialog):
+    """
+    This class generates a scrollable message box for showing the disclaimer to the user. 
+
+    :param QDialog: _description_
+    """
+    def __init__(self, text, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("HWTT Analysis Tool - Agreement")
+        self.resize(700, 500)
+        layout = QVBoxLayout(self)
+        # Create a scrollable text area
+        text_edit = QTextEdit(self)
+        text_edit.setPlainText(text)
+        text_edit.setReadOnly(True)
+        text_edit.setMinimumSize(380, 200)
+        layout.addWidget(text_edit)
+        # Create buttons
+        btn_accept = QPushButton("Accept", self)
+        btn_exit = QPushButton("Exit", self)
+        btn_accept.clicked.connect(self.accept)
+        btn_exit.clicked.connect(self.reject)
+        btn_accept.setFixedSize(100, 40)
+        btn_exit.setFixedSize(100, 40)
+        BottonLayout = QHBoxLayout()
+        BottonLayout.addWidget(btn_accept)
+        BottonLayout.addWidget(btn_exit)
+        layout.addLayout(BottonLayout)
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def Read_HWTT_Text_File(FilePath):
+    """
+    This function reads the input text file and extract the array of number passes and corresponding rut depths (mm). 
+
+    :param FilePath: The full path to the given text file. 
+    """
+    # Read the input text file (NOTE: the HWTT device at TFHRC uses encoding of 'utf-16'). 
+    with open(FilePath, 'r', encoding='utf-16') as file:
+        cont = file.readlines()
+    # Find the starting index for the result. 
+    for i, line in enumerate(cont):
+        if '[GRAPH]' in line:
+            idx = i
+            break
+    # Extract the results. 
+    pattern = r"^(-?\d+)\t(-?\d+\.\d+)\t(-?\d+\.\d+)\n$"
+    Passes, RutDepth, Temperature = [], [], []
+    for i in range(idx+2, len(cont)):
+        match = re.match(pattern, cont[i])
+        if match:
+            Passes.append(int(match.group(1)))
+            RutDepth.append(float(match.group(2)))
+            Temperature.append(float(match.group(3)))
+        else:
+            break
+    # Convert the results into numpy array. 
+    Passes      = np.array(Passes)
+    RutDepth    = np.array(RutDepth)
+    Temperature = np.array(Temperature)
+    # ------------------------------------------------------------------------------------------------------------------
+    # Extract some properties from the text file. 
+    Props = {'Test_Condition': '', 'Test_Temperature': -1, 'Test_Date': '', 'Test_Time': '', 'Wheel_Side': '', 
+             'Test_Name': ''}
+    # Check the wheel side from the file name. 
+    for i in range(idx):        # Search only over the lines before the results. 
+        if 'Mode:' in cont[i]:
+            Props['Test_Condition'] = cont[i].split('Mode:')[1].replace('\n', '')
+        elif 'Temperature:' in cont[i]:
+            Props['Test_Temperature'] = cont[i].split('Temperature:')[1].replace('\n', '').replace('°C', '')
+        elif 'Test date:' in cont[i]:
+            Props['Test_Date'] = cont[i].split('Test date:')[1].replace('\n', '')
+        elif 'Test time:' in cont[i]:
+            Props['Test_Time'] = cont[i].split('Test time:')[1].replace('\n', '')
+        elif 'Test type:' in cont[i]:
+            if 'right' in cont[i].lower():
+                Props['Wheel_Side'] = 'Right'
+            elif 'left' in cont[i].lower():
+                Props['Wheel_Side'] = 'Left'
+            else:
+                if 'RIGHT' in os.path.basename(FilePath):
+                    Props['Wheel_Side'] = 'Right'
+                elif 'LEFT' in os.path.basename(FilePath):
+                    Props['Wheel_Side'] = 'Left'
+                else:
+                    Props['Wheel_Side'] = 'N/A'
+        elif 'Test:' in cont[i]:
+            Props['Test_Name'] = cont[i].split('Test:')[1].replace('\n', '')
+
+    # Return the results. 
+    return Passes, RutDepth, Temperature, Props
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def Read_HWTT_Excel_File(FilePath):
+    """
+    This function reads the input Excel file and extract the array of number passes and corresponding rut depths (mm). 
+
+    :param FilePath: The full path to the given text file. 
+    """
+    return Passes, RutDepth, Temperature, Props
