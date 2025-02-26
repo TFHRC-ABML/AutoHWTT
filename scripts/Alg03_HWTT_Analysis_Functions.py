@@ -151,8 +151,8 @@ def HWTT_Analysis(X, Y):
     Line1[1] = ModelPower(SN_estimated, Coeff[0], Coeff[1]) - Line1[0] * SN_estimated
     Line2 = [alpha * beta * (X.max() - gamma) ** (beta - 1), None]
     Line2[1] = YY[-1] - Line2[0] * X.max()
-    SIPPass = (Line2[1] - Line1[1]) / (Line1[0] - Line2[0])
-    SIP = Line1[0] * SIPPass + Line1[1]
+    SIP = (Line2[1] - Line1[1]) / (Line1[0] - Line2[0])
+    SIP_Yval = Line1[0] * SIP + Line1[1]
     # For the tangential line at the end of the model, we use both fitted model (see above lines), and testing the same 
     #   sweeping concept on data points (not in effect right now, see below commented lines). For this purpose, the 
     #   line with the lowest intercept is used. Sweeping with 50 datapoints increasing rate.
@@ -190,7 +190,7 @@ def HWTT_Analysis(X, Y):
         'Stripping_Rutting_mm': StripRut,
         'Stripping_Rutting_Pass': StripRutX,
         'SIP': SIP,
-        'SIP_Pass': SIPPass,
+        'SIP_Yval_mm': SIP_Yval,
         'Stripping_Number': SN_estimated,
         'CreepLine': Line1,
         'TangentLine': Line2,

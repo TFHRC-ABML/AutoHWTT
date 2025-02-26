@@ -5,6 +5,7 @@
 # ======================================================================================================================
 
 # Importing the required libraries.
+import os
 import re
 import numpy as np
 from PyQt5.QtWidgets import QApplication, QPushButton, QVBoxLayout, QHBoxLayout, QDialog, QTextEdit
@@ -81,13 +82,28 @@ def Read_HWTT_Text_File(FilePath):
     # Check the wheel side from the file name. 
     for i in range(idx):        # Search only over the lines before the results. 
         if 'Mode:' in cont[i]:
-            Props['Test_Condition'] = cont[i].split('Mode:')[1].replace('\n', '')
+            TestCondition = cont[i].split('Mode:')[1].replace('\n', '')
+            if 'water' in TestCondition.lower():
+                Props['Test_Condition'] = 'Wet'
+            elif 'dry' in TestCondition.lower():
+                Props['Test_Condition'] = 'Dry'
+            else:
+                Props['Test_Condition'] = TestCondition
         elif 'Temperature:' in cont[i]:
             Props['Test_Temperature'] = cont[i].split('Temperature:')[1].replace('\n', '').replace('°C', '')
         elif 'Test date:' in cont[i]:
-            Props['Test_Date'] = cont[i].split('Test date:')[1].replace('\n', '')
+            Date  = cont[i].split('Test date:')[1].replace('\n', '')
+            Month = int(Date.split('/')[0].replace(' ', ''))
+            Day   = int(Date.split('/')[1])
+            Year  = int(Date.split('/')[-1].replace(' ', ''))
+            Props['Test_Date'] = f'{Month:02d}/{Day:02d}/{Year:04d}'
         elif 'Test time:' in cont[i]:
-            Props['Test_Time'] = cont[i].split('Test time:')[1].replace('\n', '')
+            Time = cont[i].split('Test time:')[1].replace('\n', '')
+            Hr   = int(Time.split(':')[0].replace(' ', ''))
+            Min  = int(Time.split(':')[1])
+            if 'PM' in Time:
+                Hour += 12
+            Props['Test_Time'] = f'{Hr:02d}:{Min:02d}'
         elif 'Test type:' in cont[i]:
             if 'right' in cont[i].lower():
                 Props['Wheel_Side'] = 'Right'
