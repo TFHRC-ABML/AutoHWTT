@@ -16,7 +16,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout,
     QPushButton, QWidget, QGridLayout, QFormLayout, QLineEdit, QFileDialog, QMessageBox, QGroupBox, QProgressBar, \
     QPlainTextEdit, QStackedWidget, QCheckBox, QComboBox, QTabWidget, QScrollArea, QTableWidget, QTableWidgetItem, \
     QSpinBox, QFrame
-from PyQt5.QtGui import QPixmap, QFont, QRegExpValidator, QDoubleValidator
+from PyQt5.QtGui import QPixmap, QFont, QRegExpValidator, QDoubleValidator, QIntValidator
 from PyQt5.QtCore import Qt, QRegExp
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -290,22 +290,27 @@ class MainPage(QMainWindow):
         ScrollAreaT03T1_Layout.addWidget(QLabel('General Information:'))
         SectT03T1_FormLayout = QFormLayout()
         ST03T1_Label01 = QLabel(f'{"Test Name*:".ljust(50)}')
-        ST03T1_Label02 = QLabel(f'{"Test Date:".ljust(50)}')
-        ST03T1_Label03 = QLabel(f'{"Test Time:".ljust(50)}')
+        ST03T1_Label02 = QLabel(f'{"Test Date (optional):".ljust(50)}')
+        ST03T1_Label03 = QLabel(f'{"Test Time (optional):".ljust(50)}')
         ST03T1_Label04 = QLabel(f'{"Testing condition*:".ljust(50)}')
         ST03T1_Label05 = QLabel(f'{"Wheel path side*:".ljust(50)}')
         ST03T1_Label06 = QLabel(f'{"Target test temperature (°C):".ljust(50)}')
         ST03T1_Label07 = QLabel(f'{"Avg. recorded test temperature (°C):".ljust(50)}')
         ST03T1_Label08 = QLabel(f'{"Std. recorded test temperature (°C):".ljust(50)}')
+        ST03T1_Label09 = QLabel(f'{"B-Number (ABML specific)*:".ljust(50)}')
+        ST03T1_Label10 = QLabel(f'{"Lane number (optional):".ljust(50)}')
+        ST03T1_Label11 = QLabel(f'{"Lift Location (optional):".ljust(50)}')
+        ST03T1_Label12 = QLabel(f'{"Technician Name:".ljust(50)}')
+        ST03T1_Label13 = QLabel(f'{"Other comments (optional):".ljust(50)}')
         self.ST03T1_LineEdit_TestName = QLineEdit()            # For test name. 
         self.ST03T1_LineEdit_TestName.setPlaceholderText("Enter test name here ...")
         self.ST03T1_LineEdit_TestName.setReadOnly(False)
         self.ST03T1_LineEdit_TestDate = QLineEdit()
-        self.ST03T1_LineEdit_TestDate.setInputMask("99/99/9999")       # Enforce date format, but not validating it. 
+        self.ST03T1_LineEdit_TestDate.setInputMask("99/99/9999")        # Enforce date format, but not validating it. 
         self.ST03T1_LineEdit_TestDate.setPlaceholderText("01/01/1999")
         self.ST03T1_LineEdit_TestDate.setReadOnly(False)
         self.ST03T1_LineEdit_TestTime = QLineEdit()
-        self.ST03T1_LineEdit_TestTime.setInputMask("99:99")        # Enforce dtime format. 
+        self.ST03T1_LineEdit_TestTime.setInputMask("99:99")             # Enforce dtime format. 
         self.ST03T1_LineEdit_TestTime.setPlaceholderText("01/01/1999")
         self.ST03T1_LineEdit_TestTime.setReadOnly(False)
         self.ST03T1_DropDown_TestCondition = QComboBox()
@@ -314,21 +319,42 @@ class MainPage(QMainWindow):
         self.ST03T1_DropDown_WheelSide = QComboBox()
         self.ST03T1_DropDown_WheelSide.addItems(["Left", "Right", "Not Determined"])
         self.ST03T1_DropDown_WheelSide.setCurrentIndex(0)
-        self.ST03T1_LineEdit_TargetTestTemp = QLineEdit()            # For test name. 
+        self.ST03T1_LineEdit_TargetTestTemp = QLineEdit()                   # For target test temperature. 
         self.ST03T1_LineEdit_TargetTestTemp.setPlaceholderText("Enter test target temperature ...")
         self.ST03T1_LineEdit_TargetTestTemp.setReadOnly(False)
         Validator4TargetTemp = QDoubleValidator(0.00, 99.99, 2)
         Validator4TargetTemp.setNotation(QDoubleValidator.StandardNotation)
         self.ST03T1_LineEdit_TargetTestTemp.setValidator(QDoubleValidator(0, 99.99, 2))
-        self.ST03T1_LineEdit_AvgTestTemp = QLineEdit()            # For test name. 
+        self.ST03T1_LineEdit_AvgTestTemp = QLineEdit()                      # For Average of recorded temps. 
         self.ST03T1_LineEdit_AvgTestTemp.setPlaceholderText("Avg. test temperature will be displayed here.")
         self.ST03T1_LineEdit_AvgTestTemp.setReadOnly(True)
-        self.ST03T1_LineEdit_StdTestTemp = QLineEdit()            # For test name. 
+        self.ST03T1_LineEdit_StdTestTemp = QLineEdit()                      # For Standard deviation of recorded temps. 
         self.ST03T1_LineEdit_StdTestTemp.setPlaceholderText("Std. test temperature will be displayed here.")
         self.ST03T1_LineEdit_StdTestTemp.setReadOnly(True)
-
-
+        self.ST03T1_LineEdit_BNumber = QLineEdit()                          # For B-number.
+        self.ST03T1_LineEdit_BNumber.setPlaceholderText("Enter only 4 or 5-digit B-number ...")
+        self.ST03T1_LineEdit_BNumber.setReadOnly(False)
+        IntValidator = QIntValidator(1000, 99999)
+        self.ST03T1_LineEdit_BNumber.setValidator(IntValidator)
+        self.ST03T1_LineEdit_LaneNumber = QLineEdit()                       # For Lane number. 
+        self.ST03T1_LineEdit_LaneNumber.setPlaceholderText("Enter only lane number (1-11) ...")
+        self.ST03T1_LineEdit_LaneNumber.setReadOnly(False)
+        LnNumValidator = QIntValidator(1, 11)
+        self.ST03T1_LineEdit_LaneNumber.setValidator(IntValidator)
+        self.ST03T1_DropDown_LiftLocation = QComboBox()                     # For lift location.
+        self.ST03T1_DropDown_LiftLocation.addItems(["Please Select...", "Top", "Bottom"])
+        self.ST03T1_DropDown_LiftLocation.setCurrentIndex(0)
+        self.ST03T1_LineEdit_TechnicianName = QLineEdit()                   # For Technician name. 
+        self.ST03T1_LineEdit_TechnicianName.setPlaceholderText("Enter Technician Name ...")
+        self.ST03T1_LineEdit_TechnicianName.setReadOnly(False)
+        self.ST03T1_LineEdit_OtherComments = QLineEdit()                    # For Other comments
+        self.ST03T1_LineEdit_OtherComments.setPlaceholderText("Enter any other comment ...")
+        self.ST03T1_LineEdit_OtherComments.setReadOnly(False)
         SectT03T1_FormLayout.addRow(ST03T1_Label01, self.ST03T1_LineEdit_TestName)
+        SectT03T1_FormLayout.addRow(ST03T1_Label09, self.ST03T1_LineEdit_BNumber)
+        SectT03T1_FormLayout.addRow(ST03T1_Label10, self.ST03T1_LineEdit_LaneNumber)
+        SectT03T1_FormLayout.addRow(ST03T1_Label11, self.ST03T1_DropDown_LiftLocation)
+        SectT03T1_FormLayout.addRow(ST03T1_Label12, self.ST03T1_LineEdit_TechnicianName)
         SectT03T1_FormLayout.addRow(ST03T1_Label02, self.ST03T1_LineEdit_TestDate)
         SectT03T1_FormLayout.addRow(ST03T1_Label03, self.ST03T1_LineEdit_TestTime)
         SectT03T1_FormLayout.addRow(ST03T1_Label04, self.ST03T1_DropDown_TestCondition)
@@ -336,6 +362,7 @@ class MainPage(QMainWindow):
         SectT03T1_FormLayout.addRow(ST03T1_Label06, self.ST03T1_LineEdit_TargetTestTemp)
         SectT03T1_FormLayout.addRow(ST03T1_Label07, self.ST03T1_LineEdit_AvgTestTemp)
         SectT03T1_FormLayout.addRow(ST03T1_Label08, self.ST03T1_LineEdit_StdTestTemp)
+        SectT03T1_FormLayout.addRow(ST03T1_Label13, self.ST03T1_LineEdit_OtherComments)
         ScrollAreaT03T1_Layout.addLayout(SectT03T1_FormLayout)
         Tab1_Layout.addWidget(ScrollAreaT03T1)
         # --------------------------------------------
@@ -376,7 +403,7 @@ class MainPage(QMainWindow):
         ScrollAreaT03T3_Layout = QVBoxLayout(ScrollContent3)
         ScrollAreaT03T3_Layout.addWidget(QLabel('Analysis parameters (results):'))
         self.AnalysisParam_Table = QTableWidget(12, 3)
-        self.AnalysisParam_Table.setColumnWidth(0, 160) 
+        self.AnalysisParam_Table.setColumnWidth(0, 170) 
         self.AnalysisParam_Table.setColumnWidth(1, 70) 
         self.AnalysisParam_Table.setColumnWidth(2, 150) 
         self.AnalysisParam_Table.setMinimumHeight(250)
