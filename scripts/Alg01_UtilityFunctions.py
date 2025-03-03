@@ -29,6 +29,10 @@ class ScrollableMessageBox(QDialog):
         text_edit.setPlainText(text)
         text_edit.setReadOnly(True)
         text_edit.setMinimumSize(380, 200)
+        Font = text_edit.font()
+        Font.setPointSize(12)
+        Font.setFamily("Times New Roman")
+        text_edit.setFont(Font)
         layout.addWidget(text_edit)
         # Create buttons
         btn_accept = QPushButton("Accept", self)
@@ -132,4 +136,4 @@ def Read_HWTT_Excel_File(FilePath):
 
     :param FilePath: The full path to the given text file. 
     """
-    return Passes, RutDepth, Temperature, Props
+    return None, None, None, None

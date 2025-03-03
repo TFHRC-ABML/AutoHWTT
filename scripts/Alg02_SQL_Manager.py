@@ -49,7 +49,7 @@ def Create_SQLite3_HWTT_DB_Connect(path):
         Stripping_Rutting_mm REAL, 
         Stripping_Rutting_Pass REAL, 
         SIP REAL, 
-        SIP_Pass REAL, 
+        SIP_Yvalue REAL, 
         CreepLine_Slope REAL,
         CreepLine_Intercept REAL, 
         StrippingLine_Slope REAL,
