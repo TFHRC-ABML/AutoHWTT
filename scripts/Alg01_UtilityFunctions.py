@@ -137,3 +137,36 @@ def Read_HWTT_Excel_File(FilePath):
     :param FilePath: The full path to the given text file. 
     """
     return None, None, None, None
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def Array_to_Binary(Arr):
+    """
+    This function converts a np.ndarray to binary bytes, so that it could be stored in SQL table. 
+
+    :param Arr: Input numpy array.
+    :return: three variable, including (i) serialized array in binary bytes, (ii) array shape as string, and (iii) 
+    array type as string.
+    """
+    return Arr.tobytes(), str(Arr.shape), str(Arr.dtype)
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def Binary_to_Array(BinaryArr, StrShape, StrDtype):
+    """
+    This function converts the binary bytes into a np.ndarray. This is the reverse function for the "Array_to_Binary".
+
+    :param BinaryArr: Serialized binary bytes of the array.
+    :param StrShape: Shape of the array as string. 
+    :param StrDtype: type of the data in array as string.
+    """
+    Shape = ast.literal_eval(StrShape)
+    # Shape = int(StrShape[1:-1].split(',')[0])
+    return np.frombuffer(BinaryArr, dtype=StrDtype).reshape(Shape)
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================

@@ -6,11 +6,11 @@ This repository include the simplified Graphical User Interface (GUI) developed 
 
 # To do list:
 
-- [ ] Write functions for the Accept/Outlier button. 
+- [x] Write functions for the Accept/Outlier button. 
 
-- [ ] Connect the analysis to the database
+- [x] Connect the analysis to the database
 
-- [ ] Write a startup function to continue analysis for the next sample 
+- [x] Write a startup function to continue analysis for the next sample 
 
 - [ ] Write a check function to shoot an error in case of unrecognized format. 
 
@@ -22,4 +22,6 @@ This repository include the simplified Graphical User Interface (GUI) developed 
 
 - [ ] Write a new page for material log. 
 
-- [ ] Assemble everything and run program from the MainGUI.py
+- [x] Assemble everything and run program from the MainGUI.py
+
+- [ ] Investigate the fitting of the second part of power model. 

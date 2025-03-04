@@ -9,6 +9,7 @@ import os
 import sys
 import shutil
 import sqlite3
+import fnmatch
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -20,8 +21,9 @@ from PyQt5.QtGui import QPixmap, QFont, QRegExpValidator, QDoubleValidator, QInt
 from PyQt5.QtCore import Qt, QRegExp
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from Alg01_UtilityFunctions import Read_HWTT_Text_File, Read_HWTT_Excel_File
-from Alg03_HWTT_Analysis_Functions import HWTT_Analysis, ModelPower
+from scripts.Alg01_UtilityFunctions import Read_HWTT_Text_File, Read_HWTT_Excel_File, Array_to_Binary, Binary_to_Array
+from scripts.Alg02_SQL_Manager import Append_to_Database
+from scripts.Alg03_HWTT_Analysis_Functions import HWTT_Analysis, ModelPower
 # from Alg02_SQL_Manager import Get_MC_DB_SummaryData
 # from Alg03_FreeShifting import FreeShift_GordonShaw1994
 # from Alg04_MasterCurve_Construction import Fit_ShiftModel_WLF, ShiftModel_WLF, Fit_MC_ChristensenAnderson, \
@@ -254,7 +256,7 @@ class MainPage(QMainWindow):
         # Button for specify the result as Accepted.
         self.Button_AcceptResult = QPushButton("This result is\nAccepted")
         self.Button_AcceptResult.setFont(QFont("Arial", 13, QFont.Bold))
-        # self.Button_AcceptResult.clicked.connect(self.Function_Button_PassResult)
+        self.Button_AcceptResult.clicked.connect(self.Function_Button_PassResult)
         self.Button_AcceptResult.setFixedSize(180, 50)
         self.Button_AcceptResult.setEnabled(False)
         self.Button_AcceptResult.setStyleSheet(
@@ -289,9 +291,9 @@ class MainPage(QMainWindow):
         ScrollAreaT03T1_Layout = QVBoxLayout(ScrollContent)
         ScrollAreaT03T1_Layout.addWidget(QLabel('General Information:'))
         SectT03T1_FormLayout = QFormLayout()
-        ST03T1_Label01 = QLabel(f'{"Test Name*:".ljust(50)}')
-        ST03T1_Label02 = QLabel(f'{"Test Date (optional):".ljust(50)}')
-        ST03T1_Label03 = QLabel(f'{"Test Time (optional):".ljust(50)}')
+        ST03T1_Label01 = QLabel(f'{"Test name*:".ljust(50)}')
+        ST03T1_Label02 = QLabel(f'{"Test date (optional):".ljust(50)}')
+        ST03T1_Label03 = QLabel(f'{"Test time (optional):".ljust(50)}')
         ST03T1_Label04 = QLabel(f'{"Testing condition*:".ljust(50)}')
         ST03T1_Label05 = QLabel(f'{"Wheel path side*:".ljust(50)}')
         ST03T1_Label06 = QLabel(f'{"Target test temperature (°C):".ljust(50)}')
@@ -299,9 +301,10 @@ class MainPage(QMainWindow):
         ST03T1_Label08 = QLabel(f'{"Std. recorded test temperature (°C):".ljust(50)}')
         ST03T1_Label09 = QLabel(f'{"B-Number (ABML specific)*:".ljust(50)}')
         ST03T1_Label10 = QLabel(f'{"Lane number (optional):".ljust(50)}')
-        ST03T1_Label11 = QLabel(f'{"Lift Location (optional):".ljust(50)}')
-        ST03T1_Label12 = QLabel(f'{"Technician Name:".ljust(50)}')
+        ST03T1_Label11 = QLabel(f'{"Lift location (optional):".ljust(50)}')
+        ST03T1_Label12 = QLabel(f'{"Technician name:".ljust(50)}')
         ST03T1_Label13 = QLabel(f'{"Other comments (optional):".ljust(50)}')
+        ST03T1_Label14 = QLabel(f'{"State of laboratory aging*:".ljust(50)}')
         self.ST03T1_LineEdit_TestName = QLineEdit()            # For test name. 
         self.ST03T1_LineEdit_TestName.setPlaceholderText("Enter test name here ...")
         self.ST03T1_LineEdit_TestName.setReadOnly(False)
@@ -314,11 +317,16 @@ class MainPage(QMainWindow):
         self.ST03T1_LineEdit_TestTime.setPlaceholderText("01/01/1999")
         self.ST03T1_LineEdit_TestTime.setReadOnly(False)
         self.ST03T1_DropDown_TestCondition = QComboBox()
-        self.ST03T1_DropDown_TestCondition.addItems(["Wet", "Dry"])
+        self.ST03T1_DropDown_TestCondition.addItems(["Please select ...", "Wet", "Dry"])
         self.ST03T1_DropDown_TestCondition.setCurrentIndex(0)
         self.ST03T1_DropDown_WheelSide = QComboBox()
-        self.ST03T1_DropDown_WheelSide.addItems(["Left", "Right", "Not Determined"])
+        self.ST03T1_DropDown_WheelSide.addItems(["Please select ...", "Left", "Right", "Not Determined"])
         self.ST03T1_DropDown_WheelSide.setCurrentIndex(0)
+        self.ST03T1_DropDown_LabAging = QComboBox()
+        self.ST03T1_DropDown_LabAging.addItems(["Please select ...", "No Lab Aging (Field Core)", 
+                                                "STOA (2hr @ 135°C)", "LTOA (8hr @ 135°C)", 
+                                                "LTOA (5 days @ 85°C)", "Others (Specify in comments)"])
+        self.ST03T1_DropDown_LabAging.setCurrentIndex(0)
         self.ST03T1_LineEdit_TargetTestTemp = QLineEdit()                   # For target test temperature. 
         self.ST03T1_LineEdit_TargetTestTemp.setPlaceholderText("Enter test target temperature ...")
         self.ST03T1_LineEdit_TargetTestTemp.setReadOnly(False)
@@ -342,7 +350,7 @@ class MainPage(QMainWindow):
         LnNumValidator = QIntValidator(1, 11)
         self.ST03T1_LineEdit_LaneNumber.setValidator(IntValidator)
         self.ST03T1_DropDown_LiftLocation = QComboBox()                     # For lift location.
-        self.ST03T1_DropDown_LiftLocation.addItems(["Please Select...", "Top", "Bottom"])
+        self.ST03T1_DropDown_LiftLocation.addItems(["Please Select...", "Top", "Bottom", "Not Applicable"])
         self.ST03T1_DropDown_LiftLocation.setCurrentIndex(0)
         self.ST03T1_LineEdit_TechnicianName = QLineEdit()                   # For Technician name. 
         self.ST03T1_LineEdit_TechnicianName.setPlaceholderText("Enter Technician Name ...")
@@ -354,6 +362,7 @@ class MainPage(QMainWindow):
         SectT03T1_FormLayout.addRow(ST03T1_Label09, self.ST03T1_LineEdit_BNumber)
         SectT03T1_FormLayout.addRow(ST03T1_Label10, self.ST03T1_LineEdit_LaneNumber)
         SectT03T1_FormLayout.addRow(ST03T1_Label11, self.ST03T1_DropDown_LiftLocation)
+        SectT03T1_FormLayout.addRow(ST03T1_Label14, self.ST03T1_DropDown_LabAging)
         SectT03T1_FormLayout.addRow(ST03T1_Label12, self.ST03T1_LineEdit_TechnicianName)
         SectT03T1_FormLayout.addRow(ST03T1_Label02, self.ST03T1_LineEdit_TestDate)
         SectT03T1_FormLayout.addRow(ST03T1_Label03, self.ST03T1_LineEdit_TestTime)
@@ -569,10 +578,6 @@ class MainPage(QMainWindow):
             self.ProgressBar.setEnabled(False)
             return
         # --------------------------------------------------------------------------------------------------------------
-        # Otherwise, Update the progress label.
-        self.Label_InputFileUpdate.setText(f'Processing files: {0}/{len(FileList)} done!')
-        self.ProgressBar.setEnabled(True)
-        self.ProgressBar.setValue(int(0.5 / len(FileList) * 100))
         # Update the GUI. 
         self.Button_AddFiles.setEnabled(False)
         self.Button_AddCopied.setEnabled(False)
@@ -587,27 +592,9 @@ class MainPage(QMainWindow):
         self.Menu_File_ImportCopy.setEnabled(False)
         self.Menu_File_Template.setEnabled(False)
         self.Menu_Edit_ResetReplot.setEnabled(True)
-        # Check if the selected file is already in the database. 
-        self.cursor.execute("SELECT COUNT(*) FROM HWTT WHERE FileName = ?", (os.path.basename(FileList[0]),))
-        count = self.cursor.fetchone()[0]
-        if count > 0:
-            raise Exception("The file is already existed! Maybe printing a message!")
-        # --------------------------------------------------------------------------------------------------------------
-        # Read the file and save the data. 
-        Passes, RutDepth, Temperature, Props = Read_HWTT_Text_File(FileList[0])
-        self.Results['Passes']       = Passes.copy()
-        self.Results['RutDepth']     = RutDepth.copy()
-        self.Results['Temperatures'] = Temperature.copy()
-        self.Results['Props']        = Props.copy()
-        # Update the valid passes and their corresponding spinboxes. 
-        self.ValidPasses = [0, int(Passes.max())]
-        self.SpinBox_MaxPassNumber.setRange(self.SpinBox_MinPassNumber.value() + 1, int(Passes.max()))
-        self.SpinBox_MinPassNumber.setRange(0, self.SpinBox_MaxPassNumber.value() - 1)
-        # --------------------------------------------------------------------------------------------------------------
-        # Plot the results.
-        self.Function_Button_ResetRePlot()
-        # Update the general information in result tab. 
-        self.Function_Update_General_Information()
+        # -----------------------------------------------------
+        # Call the function to plot and handle the input files. 
+        self.Function_Renew_MainPlot_For_Next_File()
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Button_Add_Excel_Files(self):
         # This function will first ask user to select the input text result files, and then it will run them one by one. 
@@ -728,6 +715,28 @@ class MainPage(QMainWindow):
         self.axes.legend(fontsize=12, loc='upper left', fancybox=True)
         self.fig.set_constrained_layout(True)
         self.canvas.draw()
+        # ---------------------------------------
+        # Clear the results.
+        self.SectT03_TabWidget.setCurrentIndex(0)
+        for i, (parameter, comment) in enumerate(zip(['a', 'b', 'SN', 'α', 'β', 'γ', 'Φ'], 
+                                                     ['1st model', '1st model', 'Boundary point', '2nd model', 
+                                                      '2nd model', '2nd model', '2nd model'])):
+            self.ModelParam_Table.setItem(i, 0, QTableWidgetItem(parameter))
+            self.ModelParam_Table.setItem(i, 1, QTableWidgetItem('Ν/Α'))
+            self.ModelParam_Table.setItem(i, 2, QTableWidgetItem(comment))
+        for i, (parameter, comment) in enumerate(zip(['Max Rut Depth (mm)', 'Max Passes', 'Rutting @ 10,000 (mm)', 
+                                                      'Rutting @ 20,000 (mm)', 'Stripping rut depth (mm)', 
+                                                      'Stripping Inflection Point (SIP)', 'SIP Y-val (mm)', 
+                                                      'Stripping Number (SN)', 'Creep line slope', 
+                                                      'Creep line intercept (mm)', 'Stripping line slope', 
+                                                      'Stripping line intercept (mm)'], 
+                                                     ['Ruttting+Stripping', '', 'Rutting only', 'Rutting only', 
+                                                      'Stripping only', '-', '-', 'Boudary point', 
+                                                      'Tang. line to creep phase', 'Tang. line to creep phase', 
+                                                      'Tang. line to strip. phase','Tang. line to strip. phase'])):
+            self.AnalysisParam_Table.setItem(i, 0, QTableWidgetItem(parameter))
+            self.AnalysisParam_Table.setItem(i, 1, QTableWidgetItem('Ν/Α'))
+            self.AnalysisParam_Table.setItem(i, 2, QTableWidgetItem(comment))
         return
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Button_RunAnalysis(self):
@@ -793,17 +802,17 @@ class MainPage(QMainWindow):
         self.ST03T1_LineEdit_TestDate.setText(self.Results['Props']['Test_Date'])
         self.ST03T1_LineEdit_TestTime.setText(self.Results['Props']['Test_Time'])
         if self.Results['Props']['Test_Condition'].lower() == 'wet':            # Evaluate the testing condition.
-            self.ST03T1_DropDown_TestCondition.setCurrentIndex(0)
-        elif self.Results['Props']['Test_Condition'].lower() == 'dry':
             self.ST03T1_DropDown_TestCondition.setCurrentIndex(1)
-        else:
+        elif self.Results['Props']['Test_Condition'].lower() == 'dry':
             self.ST03T1_DropDown_TestCondition.setCurrentIndex(2)
-        if self.Results['Props']['Wheel_Side'].lower() == 'left':
-            self.ST03T1_DropDown_WheelSide.setCurrentIndex(0)
-        elif self.Results['Props']['Wheel_Side'].lower() == 'right':
-            self.ST03T1_DropDown_WheelSide.setCurrentIndex(1)
         else:
+            self.ST03T1_DropDown_TestCondition.setCurrentIndex(0)
+        if self.Results['Props']['Wheel_Side'].lower() == 'left':
+            self.ST03T1_DropDown_WheelSide.setCurrentIndex(1)
+        elif self.Results['Props']['Wheel_Side'].lower() == 'right':
             self.ST03T1_DropDown_WheelSide.setCurrentIndex(2)
+        else:
+            self.ST03T1_DropDown_WheelSide.setCurrentIndex(3)
         self.ST03T1_LineEdit_TargetTestTemp.setText(f'{float(self.Results["Props"]["Test_Temperature"]):.2f}')
         self.ST03T1_LineEdit_AvgTestTemp.setText(f"{self.Results['Temperatures'].mean():.2f}")
         self.ST03T1_LineEdit_StdTestTemp.setText(f"{self.Results['Temperatures'].std():.4f}")
@@ -818,9 +827,9 @@ class MainPage(QMainWindow):
         # Fill the table for the Stripping number point (boundary point).
         self.ModelParam_Table.setItem(2, 1, QTableWidgetItem(f'{self.Results["Stripping_Number"]:.2f}'))
         # Fill the table for the second part power model. 
-        self.ModelParam_Table.setItem(3, 1, QTableWidgetItem(f'{self.Results["Rutting_PowerModel_Part2_Coeff"][0]:.6f}'))
+        self.ModelParam_Table.setItem(3, 1, QTableWidgetItem(f'{self.Results["Rutting_PowerModel_Part2_Coeff"][0]:.6e}'))
         self.ModelParam_Table.setItem(4, 1, QTableWidgetItem(f'{self.Results["Rutting_PowerModel_Part2_Coeff"][1]:.6f}'))
-        self.ModelParam_Table.setItem(5, 1, QTableWidgetItem(f'{self.Results["Rutting_PowerModel_Part2_Coeff"][2]:.6f}'))
+        self.ModelParam_Table.setItem(5, 1, QTableWidgetItem(f'{self.Results["Rutting_PowerModel_Part2_Coeff"][2]:.4f}'))
         self.ModelParam_Table.setItem(6, 1, QTableWidgetItem(f'{self.Results["Rutting_PowerModel_Part2_Coeff"][3]:.6f}'))
         # Fill the analysis results. 
         self.AnalysisParam_Table.setItem(0, 1, QTableWidgetItem(f'{self.Results["RutDepth"].max():.3f}'))
@@ -837,620 +846,366 @@ class MainPage(QMainWindow):
         self.AnalysisParam_Table.setItem(11, 1, QTableWidgetItem(f'{self.Results["TangentLine"][0]:.2f}'))
         self.SectT03_TabWidget.setCurrentIndex(2)
     # ------------------------------------------------------------------------------------------------------------------
-
-
-    def Plot_ComplexModulus(self):
-        # First, clear the axes. 
-        self.axes.clear()
-        # --------------------------------
-        # Take care of the visualization part. 
-        for Obj in [self.Check_Visual_Gstar, self.Check_Visual_Phase, self.Check_Visual_GP, self.Check_Visual_GPP]:
-            Obj.blockSignals(True)
-            Obj.setChecked(False)
-            Obj.blockSignals(False)
-        self.Check_Visual_Gstar.blockSignals(True)    
-        self.Check_Visual_Gstar.setChecked(True)
-        self.Check_Visual_Gstar.blockSignals(False)
-        # --------------------------------
-        # This function will plot the |G*| data at different phases. 
-        if self.AnalysisProgress == 0:          # In the first step, only plot the isotherms. 
-            Temperatures = self.CurIsotherms['Temperature'].unique()
-            for i, temp in enumerate(Temperatures):
-                Tempdf = self.CurIsotherms[(self.CurIsotherms['Temperature'] == temp) & \
-                                           (self.CurIsotherms['IsOutlier'] == 0)]
-                Tempdf = Tempdf.sort_values(by='Frequency')
-                self.axes.loglog(Tempdf['Frequency'], Tempdf['|G*|'], label=f'{temp:.1f}°C', 
-                                 color=self.PlotProps['Colors'][i % 10], 
-                                 marker=self.PlotProps['Markers'][i % 6], 
-                                 ls=self.PlotProps['LineStyle'][i % 4])
-            self.axes.set_xlabel('Frequency (rad/s)', fontsize=10, fontweight='bold', color='k')
-        elif self.AnalysisProgress == 1:        # After performing the shift, plot the shifting results. 
-            Temperatures = self.CurIsotherms['Temperature'].unique()
-            for i, temp in enumerate(Temperatures):
-                Tempdf = self.CurIsotherms[(self.CurIsotherms['Temperature'] == temp) & \
-                                           (self.CurIsotherms['IsOutlier'] == 0)]
-                Tempdf = Tempdf.sort_values(by='Frequency')
-                self.axes.loglog(Tempdf['Red_Frequency'], Tempdf['|G*|'], label=f'{temp:.1f}°C', 
-                                 color=self.PlotProps['Colors'][i % 10], 
-                                 marker=self.PlotProps['Markers'][i % 6], 
-                                 ls='')
-            self.axes.set_xlabel('Reduced Frequency (rad/s)', fontsize=10, fontweight='bold', color='k')
-        elif self.AnalysisProgress == 2:        # After performing the master curve construction, plot the MC and data.
-            Temperatures = self.CurIsotherms['Temperature'].unique()
-            for i, temp in enumerate(Temperatures):
-                Tempdf = self.CurIsotherms[(self.CurIsotherms['Temperature'] == temp) & \
-                                           (self.CurIsotherms['IsOutlier'] == 0)]
-                Tempdf = Tempdf.sort_values(by='Frequency')
-                self.axes.loglog(Tempdf['Red_Frequency'], Tempdf['|G*|'], label=f'{temp:.1f}°C', 
-                                 color=self.PlotProps['Colors'][i % 10], 
-                                 marker=self.PlotProps['Markers'][i % 6], ls='', alpha=0.5)
-            self.axes.loglog(self.Results['MC_Plot']['Freq'], self.Results['MC_Plot']['Gstar'], 
-                                ls='--', lw=1.5, color='k', label=f'{self.Results["MC_Model"]} model')
-            self.axes.set_xlabel('Reduced Frequency (rad/s)', fontsize=10, fontweight='bold', color='k')
-        else:
-            raise Exception(f'For other analysis progress states, the code is under development!')
-        # --------------------------------
-        self.axes.set_ylabel('Complex Modulus, |G*| (Pa)', fontsize=10, fontweight='bold', color='k')
-        self.axes.legend(fontsize=10, fancybox=True)
-        self.axes.grid(which='both', color='gray', alpha=0.1)
-        # Redraw the canvas
-        self.fig.set_constrained_layout(True)
-        self.canvas.draw()
+    def Function_Button_PassResult(self):
+        """
+        This function get the analysis results and submit them to the database as valid result. 
+        """
+        # First, check if the B-number and lift location was properly indicated. 
+        Check = self.Function_Check_Before_Submit_to_DB()
+        if not Check:
+            return
+        # --------------------------------------------------------------------------------------------------------------
+        # Submit data to DB. 
+        # Preparing the rep number. 
+        self.cursor.execute("SELECT COUNT(*) FROM HWTT WHERE Bnumber = ? AND Lab_Aging = ?;", 
+                            (int(self.ST03T1_LineEdit_BNumber.text()), self.ST03T1_DropDown_LabAging.currentText()))
+        RepNumber = self.cursor.fetchone()[0] + 1
+        # Preparing the data in binary form. 
+        RutData, RutData_shape, RutData_dtype = Array_to_Binary(np.vstack((self.Results['Passes'], 
+                                                                           self.Results['RutDepth'], 
+                                                                           self.Results['Temperatures'])))
+        # Append the data to the database. 
+        Append_to_Database(self.conn, self.cursor, {
+            "Bnumber": int(self.ST03T1_LineEdit_BNumber.text()), 
+            "Lab_Aging": self.ST03T1_DropDown_LabAging.currentText(), 
+            "RepNumber": RepNumber, 
+            "Wheel_Side": self.ST03T1_DropDown_WheelSide.currentText(), 
+            "FileName": os.path.basename(self.CurrentFileList[self.CurrentFileIndex]), 
+            "FileDirectory": os.path.dirname(self.CurrentFileList[self.CurrentFileIndex]), 
+            "Data": RutData, "Data_shape": RutData_shape, "Data_dtype": RutData_dtype, 
+            "StrippingNumber": self.Results['Stripping_Number'], 
+            "Max_Rut_mm": self.Results['Maximum_Rutting_mm'], "Max_Pass": self.Results['Maximum_Passes'], 
+            "RuttingAt10k_mm": self.Results['Rutting@10k_mm'], "RuttingAt20k_mm": self.Results['Rutting@20k_mm'], 
+            "ModelCoeff_a": self.Results['Rutting_PowerModel_Coeff'][0], 
+            "ModelCoeff_b": self.Results['Rutting_PowerModel_Coeff'][1], 
+            "ModelCoeff_alpha": self.Results['Rutting_PowerModel_Part2_Coeff'][0], 
+            "ModelCoeff_beta": self.Results['Rutting_PowerModel_Part2_Coeff'][1], 
+            "ModelCoeff_gamma": self.Results['Rutting_PowerModel_Part2_Coeff'][2], 
+            "ModelCoeff_Phi": self.Results['Rutting_PowerModel_Part2_Coeff'][3], 
+            "Stripping_Rutting_mm": self.Results['Stripping_Rutting_mm'], 
+            "Stripping_Rutting_Pass": self.Results['Stripping_Rutting_Pass'], 
+            "SIP": self.Results['SIP'], "SIP_Yvalue": self.Results['SIP_Yval_mm'], 
+            "CreepLine_Slope": self.Results['CreepLine'][0], 
+            "CreepLine_Intercept": self.Results['CreepLine'][1], 
+            "StrippingLine_Slope": self.Results['TangentLine'][0], 
+            "StrippingLine_Intercept": self.Results['TangentLine'][1], 
+            "Valid_Min_Pass": self.SpinBox_MinPassNumber.value(), "Valid_Max_Pass": self.SpinBox_MaxPassNumber.value(), 
+            "Test_Name": self.ST03T1_LineEdit_TestName.text(), 
+            "Technician_Name": self.ST03T1_LineEdit_TechnicianName.text(), 
+            "Test_Date": self.ST03T1_LineEdit_TestDate.text(), 
+            "Test_Time": self.ST03T1_LineEdit_TestTime.text(), 
+            "Test_Condition": self.ST03T1_DropDown_TestCondition.currentText(), 
+            "Target_Test_Temperature": float(self.ST03T1_LineEdit_TargetTestTemp.text()), 
+            "Avg_Test_Temperature": float(self.ST03T1_LineEdit_AvgTestTemp.text()), 
+            "Std_Test_Temperature": float(self.ST03T1_LineEdit_StdTestTemp.text()), 
+            "Other_Comments": self.ST03T1_LineEdit_OtherComments.text(), "IsOutlier": 0
+            })
+        # --------------------------------------------------------------------------------------------------------------
+        # Update the index and check for end of the process. 
+        self.CurrentFileIndex += 1
+        Check = self.Function_Check_End_of_Loop()
+        if Check:
+            return
+        # --------------------------------------------------------------------------------------------------------------
+        # Update the plots and everything. 
+        self.Function_Renew_MainPlot_For_Next_File()
+        # Return Nothing.
+        return
     # ------------------------------------------------------------------------------------------------------------------
-    def Plot_PhaseAngle(self):
-        # First, clear the axes. 
-        self.axes.clear()
-        # --------------------------------
-        # Take care of the visualization part. 
-        for Obj in [self.Check_Visual_Gstar, self.Check_Visual_Phase, self.Check_Visual_GP, self.Check_Visual_GPP]:
-            Obj.blockSignals(True)
-            Obj.setChecked(False)
-            Obj.blockSignals(False)
-        self.Check_Visual_Phase.blockSignals(True)
-        self.Check_Visual_Phase.setChecked(True)
-        self.Check_Visual_Phase.blockSignals(False)
-        # --------------------------------
-        # This function will plot the |G*| data at different phases. 
-        if self.AnalysisProgress == 0:          # In the first step, only plot the isotherms. 
-            Temperatures = self.CurIsotherms['Temperature'].unique()
-            for i, temp in enumerate(Temperatures):
-                Tempdf = self.CurIsotherms[(self.CurIsotherms['Temperature'] == temp) & \
-                                           (self.CurIsotherms['IsOutlier'] == 0)]
-                Tempdf = Tempdf.sort_values(by='Frequency')
-                self.axes.semilogx(Tempdf['Frequency'], Tempdf['PhaseAngle'], label=f'{temp:.1f}°C', 
-                                   color=self.PlotProps['Colors'][i % 10],
-                                   marker=self.PlotProps['Markers'][i % 6], 
-                                   ls=self.PlotProps['LineStyle'][i % 4])
-            self.axes.set_xlabel('Frequency (rad/s)', fontsize=10, fontweight='bold', color='k')
-        elif self.AnalysisProgress == 1:        # After performing the shift, plot the shifting results. 
-            Temperatures = self.CurIsotherms['Temperature'].unique()
-            for i, temp in enumerate(Temperatures):
-                Tempdf = self.CurIsotherms[(self.CurIsotherms['Temperature'] == temp) & \
-                                           (self.CurIsotherms['IsOutlier'] == 0)]
-                Tempdf = Tempdf.sort_values(by='Frequency')
-                self.axes.semilogx(Tempdf['Red_Frequency'], Tempdf['PhaseAngle'], label=f'{temp:.1f}°C', 
-                                   color=self.PlotProps['Colors'][i % 10],
-                                   marker=self.PlotProps['Markers'][i % 6], 
-                                   ls='')
-            self.axes.set_xlabel('Reduced Frequency (rad/s)', fontsize=10, fontweight='bold', color='k')
-        elif self.AnalysisProgress == 2:        # After performing the master curve construction, plot the MC and data.
-            Temperatures = self.CurIsotherms['Temperature'].unique()
-            for i, temp in enumerate(Temperatures):
-                Tempdf = self.CurIsotherms[(self.CurIsotherms['Temperature'] == temp) & \
-                                           (self.CurIsotherms['IsOutlier'] == 0)]
-                Tempdf = Tempdf.sort_values(by='Frequency')
-                self.axes.semilogx(Tempdf['Red_Frequency'], Tempdf['PhaseAngle'], label=f'{temp:.1f}°C', 
-                                   color=self.PlotProps['Colors'][i % 10], 
-                                   marker=self.PlotProps['Markers'][i % 6], ls='', alpha=0.5)
-            self.axes.semilogx(self.Results['MC_Plot']['Freq'], self.Results['MC_Plot']['Phase'], 
-                                ls='--', lw=1.5, color='k', label=f'{self.Results["MC_Model"]} model')
-            self.axes.set_xlabel('Reduced Frequency (rad/s)', fontsize=10, fontweight='bold', color='k')
-        else:
-            raise Exception(f'For other analysis progress states, the code is under development!')
-        # --------------------------------
-        self.axes.set_ylabel('Phase Angle, δ (°)', fontsize=10, fontweight='bold', color='k')
-        self.axes.legend(fontsize=10, fancybox=True)
-        self.axes.grid(which='both', color='gray', alpha=0.1)
-        # Redraw the canvas
-        self.fig.set_constrained_layout(True)
-        self.canvas.draw()
+    def Function_Button_FailResult(self):
+        """
+        This function get the analysis results and submit them to the database as an outlier result. 
+        """
+        # First, check if the B-number and lift location was properly indicated. 
+        Check = self.Function_Check_Before_Submit_to_DB()
+        if not Check:
+            return
+        # --------------------------------------------------------------------------------------------------------------
+        # Submit data to DB. 
+        # Preparing the rep number. 
+        self.cursor.execute("SELECT COUNT(*) FROM HWTT WHERE Bnumber = ? AND Lab_Aging = ?;", 
+                            (int(self.ST03T1_LineEdit_BNumber.text()), self.ST03T1_DropDown_LabAging.currentText()))
+        RepNumber = self.cursor.fetchone()[0] + 1
+        # Preparing the data in binary form. 
+        RutData, RutData_shape, RutData_dtype = Array_to_Binary(np.vstack((self.Results['Passes'], 
+                                                                           self.Results['RutDepth'], 
+                                                                           self.Results['Temperatures'])))
+        # Append the data to the database. 
+        Append_to_Database(self.conn, self.cursor, {
+            "Bnumber": int(self.ST03T1_LineEdit_BNumber.text()), 
+            "Lab_Aging": self.ST03T1_DropDown_LabAging.currentText(), 
+            "RepNumber": RepNumber, 
+            "Wheel_Side": self.ST03T1_DropDown_WheelSide.currentText(), 
+            "FileName": os.path.basename(self.CurrentFileList[self.CurrentFileIndex]), 
+            "FileDirectory": os.path.dirname(self.CurrentFileList[self.CurrentFileIndex]), 
+            "Data": RutData, "Data_shape": RutData_shape, "Data_dtype": RutData_dtype, 
+            "StrippingNumber": self.Results['Stripping_Number'], 
+            "Max_Rut_mm": self.Results['Maximum_Rutting_mm'], "Max_Pass": self.Results['Maximum_Passes'], 
+            "RuttingAt10k_mm": self.Results['Rutting@10k_mm'], "RuttingAt20k_mm": self.Results['Rutting@20k_mm'], 
+            "ModelCoeff_a": self.Results['Rutting_PowerModel_Coeff'][0], 
+            "ModelCoeff_b": self.Results['Rutting_PowerModel_Coeff'][1], 
+            "ModelCoeff_alpha": self.Results['Rutting_PowerModel_Part2_Coeff'][0], 
+            "ModelCoeff_beta": self.Results['Rutting_PowerModel_Part2_Coeff'][1], 
+            "ModelCoeff_gamma": self.Results['Rutting_PowerModel_Part2_Coeff'][2], 
+            "ModelCoeff_Phi": self.Results['Rutting_PowerModel_Part2_Coeff'][3], 
+            "Stripping_Rutting_mm": self.Results['Stripping_Rutting_mm'], 
+            "Stripping_Rutting_Pass": self.Results['Stripping_Rutting_Pass'], 
+            "SIP": self.Results['SIP'], "SIP_Yvalue": self.Results['SIP_Yval_mm'], 
+            "CreepLine_Slope": self.Results['CreepLine'][0], 
+            "CreepLine_Intercept": self.Results['CreepLine'][1], 
+            "StrippingLine_Slope": self.Results['TangentLine'][0], 
+            "StrippingLine_Intercept": self.Results['TangentLine'][1], 
+            "Valid_Min_Pass": self.SpinBox_MinPassNumber.value(), "Valid_Max_Pass": self.SpinBox_MaxPassNumber.value(), 
+            "Test_Name": self.ST03T1_LineEdit_TestName.text(), 
+            "Technician_Name": self.ST03T1_LineEdit_TechnicianName.text(), 
+            "Test_Date": self.ST03T1_LineEdit_TestDate.text(), 
+            "Test_Time": self.ST03T1_LineEdit_TestTime.text(), 
+            "Test_Condition": self.ST03T1_DropDown_TestCondition.currentText(), 
+            "Target_Test_Temperature": float(self.ST03T1_LineEdit_TargetTestTemp.text()), 
+            "Avg_Test_Temperature": float(self.ST03T1_LineEdit_AvgTestTemp.text()), 
+            "Std_Test_Temperature": float(self.ST03T1_LineEdit_StdTestTemp.text()), 
+            "Other_Comments": self.ST03T1_LineEdit_OtherComments.text(), "IsOutlier": 1
+            })
+        # --------------------------------------------------------------------------------------------------------------
+        # Update the index and check for end of the process. 
+        self.CurrentFileIndex += 1
+        Check = self.Function_Check_End_of_Loop()
+        if Check:
+            return
+        # --------------------------------------------------------------------------------------------------------------
+        # Update the plots and everything. 
+        self.Function_Renew_MainPlot_For_Next_File()
+        # Return Nothing.
+        return
     # ------------------------------------------------------------------------------------------------------------------
-    def Plot_StorageModulus(self):
-        # First, clear the axes. 
-        self.axes.clear()
-        # --------------------------------
-        # Take care of the visualization part. 
-        for Obj in [self.Check_Visual_Gstar, self.Check_Visual_Phase, self.Check_Visual_GP, self.Check_Visual_GPP]:
-            Obj.blockSignals(True)
-            Obj.setChecked(False)
-            Obj.blockSignals(False)
-        self.Check_Visual_GP.blockSignals(True)    
-        self.Check_Visual_GP.setChecked(True)
-        self.Check_Visual_GP.blockSignals(False)
-        # --------------------------------
-        # This function will plot the StorageModulus data at different phases. 
-        if self.AnalysisProgress == 0:          # In the first step, only plot the isotherms. 
-            Temperatures = self.CurIsotherms['Temperature'].unique()
-            for i, temp in enumerate(Temperatures):
-                Tempdf = self.CurIsotherms[(self.CurIsotherms['Temperature'] == temp) & \
-                                           (self.CurIsotherms['IsOutlier'] == 0)]
-                Tempdf = Tempdf.sort_values(by='Frequency')
-                self.axes.loglog(Tempdf['Frequency'], Tempdf['StorageModulus'], label=f'{temp:.1f}°C', 
-                                 color=self.PlotProps['Colors'][i % 10], 
-                                 marker=self.PlotProps['Markers'][i % 6], 
-                                 ls=self.PlotProps['LineStyle'][i % 4])
-            self.axes.set_xlabel('Frequency (rad/s)', fontsize=10, fontweight='bold', color='k')
-        elif self.AnalysisProgress == 1:        # After performing the shift, plot the shifting results. 
-            Temperatures = self.CurIsotherms['Temperature'].unique()
-            for i, temp in enumerate(Temperatures):
-                Tempdf = self.CurIsotherms[(self.CurIsotherms['Temperature'] == temp) & \
-                                           (self.CurIsotherms['IsOutlier'] == 0)]
-                Tempdf = Tempdf.sort_values(by='Frequency')
-                self.axes.loglog(Tempdf['Red_Frequency'], Tempdf['StorageModulus'], label=f'{temp:.1f}°C', 
-                                 color=self.PlotProps['Colors'][i % 10], 
-                                 marker=self.PlotProps['Markers'][i % 6], 
-                                 ls='')
-            self.axes.set_xlabel('Reduced Frequency (rad/s)', fontsize=10, fontweight='bold', color='k')
-        elif self.AnalysisProgress == 2:        # After performing the master curve construction, plot the MC and data.
-            Temperatures = self.CurIsotherms['Temperature'].unique()
-            for i, temp in enumerate(Temperatures):
-                Tempdf = self.CurIsotherms[(self.CurIsotherms['Temperature'] == temp) & \
-                                           (self.CurIsotherms['IsOutlier'] == 0)]
-                Tempdf = Tempdf.sort_values(by='Frequency')
-                self.axes.loglog(Tempdf['Red_Frequency'], Tempdf['StorageModulus'], label=f'{temp:.1f}°C', 
-                                 color=self.PlotProps['Colors'][i % 10], 
-                                 marker=self.PlotProps['Markers'][i % 6], ls='', alpha=0.5)
-            self.axes.loglog(self.Results['MC_Plot']['Freq'], self.Results['MC_Plot']['GP'], 
-                                ls='--', lw=1.5, color='k', label=f'{self.Results["MC_Model"]} model')
-            self.axes.set_xlabel('Reduced Frequency (rad/s)', fontsize=10, fontweight='bold', color='k')
-        else:
-            raise Exception(f'For other analysis progress states, the code is under development!')
-        # --------------------------------
-        self.axes.set_ylabel("Storage modulus, G' (Pa)", fontsize=10, fontweight='bold', color='k')
-        self.axes.legend(fontsize=10, fancybox=True)
-        self.axes.grid(which='both', color='gray', alpha=0.1)
-        # Redraw the canvas
-        self.fig.set_constrained_layout(True)
-        self.canvas.draw()
+    def Function_Check_Before_Submit_to_DB(self):
+        """
+        This function performs some simple checks before accepting or rejecting the data and submit them to Database. 
+        """
+        # Check for B-number.
+        if self.ST03T1_LineEdit_BNumber.text() == '' or int(self.ST03T1_LineEdit_BNumber.text()) < 1000:
+            self.SectT03_TabWidget.setCurrentIndex(0)
+            QMessageBox.critical(self, "Invalid B-Number", 
+                                 f"B-number is required to submit this test results to database. Please provide a " + 
+                                 f"valid B-number under 'General' tab.\n\n" + 
+                                 f"B-number is an unique identification number of materials in TFHRC laboratory, " +
+                                 f"which is used as primary key to filter materials. If your using this tool for " + 
+                                 f"any other laboratory, you may assign a 4 or 5 digit integer number to the tested " + 
+                                 f"sample and use it as B-number.")
+            return False
+        # -----------------------------
+        # Check for the lift location. 
+        if self.ST03T1_DropDown_LiftLocation.currentIndex() == 0:
+            self.SectT03_TabWidget.setCurrentIndex(0)
+            QMessageBox.critical(self, "Invalid Lift Location", 
+                                 f"Lift location (Top/Bottom) is required to submit this test results to database. " + 
+                                 f"Please select the lift location from the corresponding dropdown menu under " + 
+                                 f"'General' tab.\n\n" + 
+                                 f"Lift Location is required as the HWTT Analysis Tool was developed to analyze " + 
+                                 f"HWTT test results for materials from Pavement Testing Facility (PTF), located at " +
+                                 f"Turner-Fairbank Highway Research Center (TFHRC), where most lanes consists of 2 " +
+                                 f"lifts of asphalt mixtures. If you are using this tool for another project where " +
+                                 f"lift location is not applicable, please select 'Not Applicable' option.")
+            return False
+        # -----------------------------
+        # Check for the state of laboratory aging. 
+        if self.ST03T1_DropDown_LabAging.currentIndex() == 0:
+            self.SectT03_TabWidget.setCurrentIndex(0)
+            QMessageBox.critical(self, "Invalid Lab Aging", 
+                                 f"State of laboratory aging is required to submit this test results to database. " + 
+                                 f"Please select the state of laboratory aging from the corresponding dropdown menu " + 
+                                 f"under 'General' tab.\n\n" + 
+                                 f"All samples prepared for HWTT testing could be collected either from Field cores, " + 
+                                 f"or compacted in the lab. According to TFHRC experience, almost all field cores " +
+                                 f"were not undergone any laboratory aging. This is while the loose mixtures " +
+                                 f"collected during the construction of Pavement Testing Facility (PTF) were " +
+                                 f"undergone short- or long-term aging. If you don't have any laboratory aging " + 
+                                 f"associated to your samples, please select 'no lab aging' option. If the proper " +
+                                 f"laboratory aging procedure is not available in dropdown menu, please use 'others' " +
+                                 f"and provide summary of laboratory aging in comments section or contact developers " +
+                                 f"to add your desire laboratory aging option.")
+            return False
+        # -----------------------------
+        # Check if comments provided in case of other laboratory methods. 
+        if self.ST03T1_DropDown_LabAging.currentText() == 'Others (Specify in comments)' and \
+            self.ST03T1_LineEdit_OtherComments.text() == '':
+            self.SectT03_TabWidget.setCurrentIndex(0)
+            QMessageBox.critical(self, "Error with Lab Aging", 
+                                 f"You've selected 'Others (Specify in comments)' as your laboratory aging method, " + 
+                                 f"but the comments section was empty. Please provide your desire laboratory aging " + 
+                                 f"method in 'Other comments' text box under 'General' tab.")
+            return False
+        # Otherwise, return true.
+        return True
     # ------------------------------------------------------------------------------------------------------------------
-    def Plot_LossModulus(self):
-        # First, clear the axes. 
-        self.axes.clear()
-        # --------------------------------
-        # Take care of the visualization part. 
-        for Obj in [self.Check_Visual_Gstar, self.Check_Visual_Phase, self.Check_Visual_GP, self.Check_Visual_GPP]:
-            Obj.blockSignals(True)
-            Obj.setChecked(False)
-            Obj.blockSignals(False)
-        self.Check_Visual_GPP.blockSignals(True)    
-        self.Check_Visual_GPP.setChecked(True)
-        self.Check_Visual_GPP.blockSignals(False)
-        # --------------------------------
-        # This function will plot the Loss Modulus data at different phases. 
-        if self.AnalysisProgress == 0:          # In the first step, only plot the isotherms. 
-            Temperatures = self.CurIsotherms['Temperature'].unique()
-            for i, temp in enumerate(Temperatures):
-                Tempdf = self.CurIsotherms[(self.CurIsotherms['Temperature'] == temp) & \
-                                           (self.CurIsotherms['IsOutlier'] == 0)]
-                Tempdf = Tempdf.sort_values(by='Frequency')
-                self.axes.loglog(Tempdf['Frequency'], Tempdf['LossModulus'], label=f'{temp:.1f}°C', 
-                                 color=self.PlotProps['Colors'][i % 10], 
-                                 marker=self.PlotProps['Markers'][i % 6], 
-                                 ls=self.PlotProps['LineStyle'][i % 4])
-            self.axes.set_xlabel('Frequency (rad/s)', fontsize=10, fontweight='bold', color='k')
-        elif self.AnalysisProgress == 1:        # After performing the shift, plot the shifting results. 
-            Temperatures = self.CurIsotherms['Temperature'].unique()
-            for i, temp in enumerate(Temperatures):
-                Tempdf = self.CurIsotherms[(self.CurIsotherms['Temperature'] == temp) & \
-                                           (self.CurIsotherms['IsOutlier'] == 0)]
-                Tempdf = Tempdf.sort_values(by='Frequency')
-                self.axes.loglog(Tempdf['Red_Frequency'], Tempdf['LossModulus'], label=f'{temp:.1f}°C', 
-                                 color=self.PlotProps['Colors'][i % 10], 
-                                 marker=self.PlotProps['Markers'][i % 6], 
-                                 ls='')
-            self.axes.set_xlabel('Reduced Frequency (rad/s)', fontsize=10, fontweight='bold', color='k')
-        elif self.AnalysisProgress == 2:        # After performing the master curve construction, plot the MC and data.
-            Temperatures = self.CurIsotherms['Temperature'].unique()
-            for i, temp in enumerate(Temperatures):
-                Tempdf = self.CurIsotherms[(self.CurIsotherms['Temperature'] == temp) & \
-                                           (self.CurIsotherms['IsOutlier'] == 0)]
-                Tempdf = Tempdf.sort_values(by='Frequency')
-                self.axes.loglog(Tempdf['Red_Frequency'], Tempdf['LossModulus'], label=f'{temp:.1f}°C', 
-                                 color=self.PlotProps['Colors'][i % 10], 
-                                 marker=self.PlotProps['Markers'][i % 6], ls='', alpha=0.5)
-            self.axes.loglog(self.Results['MC_Plot']['Freq'], self.Results['MC_Plot']['GPP'], 
-                                ls='--', lw=1.5, color='k', label=f'{self.Results["MC_Model"]} model')
-            self.axes.set_xlabel('Reduced Frequency (rad/s)', fontsize=10, fontweight='bold', color='k')
-        else:
-            raise Exception(f'For other analysis progress states, the code is under development!')
-        # --------------------------------
-        self.axes.set_ylabel('Loss modulus, G" (Pa)', fontsize=10, fontweight='bold', color='k')
-        self.axes.legend(fontsize=10, fancybox=True)
-        self.axes.grid(which='both', color='gray', alpha=0.1)
-        # Redraw the canvas
-        self.fig.set_constrained_layout(True)
-        self.canvas.draw()
-    # ------------------------------------------------------------------------------------------------------------------
-    def Function_Button_SpecifyOutlier(self, checked):
-        # This function should connect or disconnect the "Connection ID" for the click event trigger listener, by which 
-        #   user can specify the outlier datapoints. 
-        if checked:             # The button is pressed and wait to specify the outliers. 
-            # Adjust the status of GUI. 
-            self.Button_Finalize.setEnabled(False)          # Disable finalize buttons. 
-            self.Menu_Fit_Finalize.setEnabled(False)
-            if not self.Button_SpecifyOutlier.isChecked():
-                self.Button_SpecifyOutlier.blockSignals(True)
-                self.Button_SpecifyOutlier.setChecked(True)
-                self.Button_SpecifyOutlier.blockSignals(False)
-            if not self.Menu_Fit_Outlier.isChecked():
-                self.Menu_Fit_Outlier.blockSignals(True)
-                self.Menu_Fit_Outlier.setChecked(True)
-                self.Menu_Fit_Outlier.blockSignals(False)
-            self.Check_Visual_Gstar.setEnabled(False)       # Disable the plot type controllers.
-            self.Check_Visual_Phase.setEnabled(False)
-            self.Check_Visual_GP.setEnabled(False)
-            self.Check_Visual_GPP.setEnabled(False)
-            # Print the message to user. 
-            MsgBox_Outlier_Instruct = QMessageBox()
-            MsgBox_Outlier_Instruct.setIcon(QMessageBox.Information)
-            MsgBox_Outlier_Instruct.setWindowTitle("Specify Outlier")
-            MsgBox_Outlier_Instruct.setText(f"Please click near datapoints on graph to specify them as outlier.\n" +
-                                            f"When finished, please click on 'Operation Done!' button.")
-            MsgBox_Outlier_Instruct.setStandardButtons(QMessageBox.Ok)
-            MsgBox_Outlier_Instruct.exec_()
-            # Enable mouse click handling
-            self.ConnectionID = self.canvas.mpl_connect("button_press_event", self.Function_On_Mouse_Click_Outlier)
-            self.Button_SpecifyOutlier.setText("Operation Done!")       # Change the name.
-            self.Menu_Fit_Outlier.setText("Operation Done!")
-            # Plot the outlier datapoints. 
-            Tempdf = self.CurIsotherms[self.CurIsotherms['IsOutlier'] == 1]
-            self.OutlierIndex = self.CurIsotherms.index[self.CurIsotherms['IsOutlier'] == 1].tolist()
-            X = Tempdf['Frequency'].to_numpy()
-            if self.Check_Visual_Gstar.isChecked():
-                Y = Tempdf['|G*|'].to_numpy()
-                self.Outlier_Line = self.axes.loglog(X, Y, ls='', marker='*', ms=12, color='r')
-            elif self.Check_Visual_Phase.isChecked():
-                Y = Tempdf['PhaseAngle'].to_numpy()
-                self.Outlier_Line = self.axes.semilogx(X, Y, ls='', marker='*', ms=12, color='r')
-            elif self.Check_Visual_GP.isChecked():
-                Y = Tempdf['StorageModulus'].to_numpy()
-                self.Outlier_Line = self.axes.loglog(X, Y, ls='', marker='*', ms=12, color='r')
-            elif self.Check_Visual_GPP.isChecked():
-                Y = Tempdf['LossModulus'].to_numpy()
-                self.Outlier_Line = self.axes.loglog(X, Y, ls='', marker='*', ms=12, color='r')
-            else:
-                raise Exception(f'Only one of the checkboxes in the Visualization section should be checked!')
+    def Function_Check_End_of_Loop(self):
+        """
+        This function only checks if all the required files are analyzed, and if the analysis is finished, it reactivate
+        the main window. 
+        """
+        if self.CurrentFileIndex >= len(self.CurrentFileList):
+            QMessageBox.information(self, "Success", f"Loop over {len(self.CurrentFileList)} files has been finished!")
+            # Clear the plots.
+            self.axes.clear()
+            self.axes.set_xlabel('Number of passes', fontsize=10, fontweight='bold', color='k')
+            self.axes.set_ylabel('Rut depth (mm)', fontsize=10, fontweight='bold', color='k')
+            self.axes.grid(which='both', color='gray', alpha=0.1)
+            self.axes.set_xlim([0, 20000])
+            self.axes.set_ylim([0, 10])
             self.fig.set_constrained_layout(True)
-            self.canvas.draw()      # Redraw the canvas
-        else:
-            if self.Button_SpecifyOutlier.isChecked():
-                self.Button_SpecifyOutlier.blockSignals(True)
-                self.Button_SpecifyOutlier.setChecked(False)
-                self.Button_SpecifyOutlier.blockSignals(False)
-            if self.Menu_Fit_Outlier.isChecked():
-                self.Menu_Fit_Outlier.blockSignals(True)
-                self.Menu_Fit_Outlier.setChecked(False)
-                self.Menu_Fit_Outlier.blockSignals(False)
-            # Modify the outlier status of the datapoints.
-            self.CurIsotherms['IsOutlier'] = 0
-            self.CurIsotherms.loc[self.OutlierIndex, 'IsOutlier'] = 1
-            # Re-plot the data. 
-            self.Plot_ComplexModulus()
-            # Adjust back the GUI.
-            self.Button_Finalize.setEnabled(True)           # Enable back the finalize buttons. 
-            self.Menu_Fit_Finalize.setEnabled(True)
-            self.Check_Visual_Gstar.setEnabled(True)        # Disable the plot type controllers.
-            self.Check_Visual_Phase.setEnabled(True)
-            self.Check_Visual_GP.setEnabled(True)
-            self.Check_Visual_GPP.setEnabled(True)
-            # Disable mouse click handling.
-            if self.ConnectionID is not None:
-                self.canvas.mpl_disconnect(self.ConnectionID)
-                self.ConnectionID = None
-            self.Button_SpecifyOutlier.setText("Specify Outliers")      # Change back the name. 
-            self.Menu_Fit_Outlier.setText("Specify Outlier")
+            self.canvas.draw()
+            # Empty the result tabs.
+            self.SectT03_TabWidget.setCurrentIndex(0)
+            self.SectT03_TabWidget.setEnabled(False)
+            self.ST03T1_LineEdit_TestName.setText('')
+            self.ST03T1_LineEdit_TestDate.setText('')
+            self.ST03T1_LineEdit_TestTime.setText('')
+            self.ST03T1_DropDown_TestCondition.setCurrentIndex(2)
+            self.ST03T1_DropDown_WheelSide.setCurrentIndex(2)
+            self.ST03T1_LineEdit_TargetTestTemp.setText('')
+            self.ST03T1_LineEdit_AvgTestTemp.setText('')
+            self.ST03T1_LineEdit_StdTestTemp.setText('')
+            for i, (parameter, comment) in enumerate(zip(['a', 'b', 'SN', 'α', 'β', 'γ', 'Φ'], 
+                                                         ['1st model', '1st model', 'Boundary point', '2nd model', 
+                                                          '2nd model', '2nd model', '2nd model'])):
+                self.ModelParam_Table.setItem(i, 0, QTableWidgetItem(parameter))
+                self.ModelParam_Table.setItem(i, 1, QTableWidgetItem('Ν/Α'))
+                self.ModelParam_Table.setItem(i, 2, QTableWidgetItem(comment))
+            for i, (parameter, comment) in enumerate(zip(['Max Rut Depth (mm)', 'Max Passes', 'Rutting @ 10,000 (mm)', 
+                                                          'Rutting @ 20,000 (mm)', 'Stripping rut depth (mm)', 
+                                                          'Stripping Inflection Point (SIP)', 'SIP Y-val (mm)', 
+                                                          'Stripping Number (SN)', 'Creep line slope', 
+                                                          'Creep line intercept (mm)', 'Stripping line slope', 
+                                                          'Stripping line intercept (mm)'], 
+                                                          ['Ruttting+Stripping', '', 'Rutting only', 'Rutting only', 
+                                                           'Stripping only', '-', '-', 'Boudary point', 
+                                                           'Tang. line to creep phase', 'Tang. line to creep phase', 
+                                                           'Tang. line to strip. phase','Tang. line to strip. phase'])):
+                self.AnalysisParam_Table.setItem(i, 0, QTableWidgetItem(parameter))
+                self.AnalysisParam_Table.setItem(i, 1, QTableWidgetItem('Ν/Α'))
+                self.AnalysisParam_Table.setItem(i, 2, QTableWidgetItem(comment))
+            # Adjust the buttons the buttons. 
+            self.Button_RunAnalysis.setEnabled(False)
+            self.Button_ResetRePlot.setEnabled(False)
+            self.Menu_Edit_ResetReplot.setEnabled(False)
+            self.Button_FailResult.setEnabled(False)
+            self.Button_AcceptResult.setEnabled(False)
+            self.Button_Template.setEnabled(True)
+            self.Menu_File_Template.setEnabled(True)
+            self.Button_AddCopied.setEnabled(True)
+            self.Menu_File_ImportCopy.setEnabled(True)
+            self.Button_AddFiles.setEnabled(True)
+            self.Menu_File_ImportFiles.setEnabled(True)
+            self.SpinBox_MaxPassNumber.setEnabled(False)
+            self.SpinBox_MinPassNumber.setEnabled(False)
+            self.CheckBox_OffsetFirstRawData.setEnabled(False)
+            self.ProgressBar.setValue(0)
+            self.Label_InputFileUpdate.setText('Waiting for input files...')
+            # Return "True".
+            return True
+        # Otherwise, return False.
+        return False
     # ------------------------------------------------------------------------------------------------------------------
-    def Function_On_Mouse_Click_Outlier(self, event):
-        # The main function to specify the outliers based on the mouse click. 
-        if event.xdata is None or event.ydata is None:                  # Ignore clicks outside the axes
+    def Function_Renew_MainPlot_For_Next_File(self):
+        """
+        This function goes through the next input file in the queue and try to read and plot the file. 
+        """
+        FileCompatibleFlag = False
+        # Iterate over the files. 
+        for i in range(self.CurrentFileIndex, len(self.CurrentFileList)):
+            self.CurrentFileIndex = i
+            # Check if the file is already exist in the database. 
+            self.cursor.execute("SELECT EXISTS(SELECT 1 FROM HWTT WHERE FileName = ?)", 
+                                (os.path.basename(self.CurrentFileList[i]),))
+            exists = self.cursor.fetchone()[0]
+            if exists:
+                if not self.ShowFileExistedError:
+                    continue
+                self.cursor.execute("SELECT Bnumber, RepNumber, Lab_Aging FROM HWTT WHERE FileName = ?", 
+                                    (os.path.basename(self.CurrentFileList[i]),))
+                [bnum, repnum, labage] = self.cursor.fetchone()
+                self.FileExistedError(f"File Already Existed!", 
+                                      f"The file <{os.path.basename(self.CurrentFileList[i])}> was already exists " + 
+                                      f"in the database. Instead of reloading the file, please try to edit/modify " + 
+                                      f"the analysis on that specific file. Take note of B-number, Rep number and " + 
+                                      f"laboratory aging state (as provided below), and try to use 'Edit/Modify DB' " + 
+                                      f"button to edit this result!\n" + 
+                                      f"B-number: {bnum}\nRep number: {repnum}\nLaboratory Aging: {labage}\n" + 
+                                      f"File directory: {os.path.dirname(self.CurrentFileList[i])}")
+                continue
+            # Check the file compatibility.
+            try:
+                if fnmatch.fnmatch(os.path.basename(self.CurrentFileList[i][-4:]), '*.txt'):
+                    Passes, RutDepth, Temperature, Props = Read_HWTT_Text_File(self.CurrentFileList[i])
+                    FileCompatibleFlag = True
+                    break
+                elif fnmatch.fnmatch(os.path.basename(self.CurrentFileList[i][-4:]), '*.xlsx'):
+                    Passes, RutDepth, Temperature, Props = Read_HWTT_Excel_File(self.CurrentFileList[i])
+                    FileCompatibleFlag = True
+                    break
+                else:
+                    raise ValueError(f'File format should be either "*.txt" or "*.xlsx". Please check the input file ' + 
+                                    f'format.')
+            except Exception as err:
+                progress = int((i + 0.5) / len(self.CurrentFileList) * 100)
+                if progress > 100: progress = 100
+                self.ProgressBar.setValue(progress)
+                QMessageBox.critical(self, "Unable to Read File!", 
+                                     f"There is a problem in reading the input file:\n" + 
+                                     f"File: <{os.path.basename(self.CurrentFileList[i])}>\nDirectory: " + 
+                                     f"{os.path.dirname(self.CurrentFileList[i])}.\n\n" +
+                                     f"Input file should be either *.txt or *.xlsx. To ensure compatibility, please " + 
+                                     f"use the template files in construction of your input files.\n" +
+                                     f"Error: {err}")
+                continue
+        # --------------------------------------------------------------------------------------------------------------
+        # Check if a compatible file found.
+        if not FileCompatibleFlag:
+            self.CurrentFileIndex += 1
+            self.Function_Check_End_of_Loop()
             return
-        # Get the coordinate of the clicked points and all datapoints. 
-        X_clicked = event.xdata
-        Y_clicked = event.ydata
-        self.CurIsotherms['Distance'] = 10000
-        # Find the closest datapoint to the clicked point. 
-        if self.Check_Visual_Gstar.isChecked():
-            self.CurIsotherms['Distance'] = \
-                np.sqrt((np.log10(self.CurIsotherms['Frequency']) - np.log10(X_clicked)) ** 2 + \
-                        (np.log10(self.CurIsotherms['|G*|'])      - np.log10(Y_clicked)) ** 2)
-            Index = self.CurIsotherms['Distance'].idxmin()
-            X_picked = self.CurIsotherms.loc[Index, 'Frequency']
-            Y_picked = self.CurIsotherms.loc[Index, '|G*|']
-        elif self.Check_Visual_Phase.isChecked():
-            self.CurIsotherms['Distance'] = \
-                np.sqrt((np.log10(self.CurIsotherms['Frequency']) - np.log10(X_clicked)) ** 2 + \
-                        (self.CurIsotherms['PhaseAngle'] - Y_clicked) ** 2)
-            Index = self.CurIsotherms['Distance'].idxmin()
-            X_picked = self.CurIsotherms.loc[Index, 'Frequency']
-            Y_picked = self.CurIsotherms.loc[Index, 'PhaseAngle']
-        elif self.Check_Visual_GP.isChecked():
-            self.CurIsotherms['Distance'] = \
-                np.sqrt((np.log10(self.CurIsotherms['Frequency'])      - np.log10(X_clicked)) ** 2 + \
-                        (np.log10(self.CurIsotherms['StorageModulus']) - np.log10(Y_clicked)) ** 2)
-            Index = self.CurIsotherms['Distance'].idxmin()
-            X_picked = self.CurIsotherms.loc[Index, 'Frequency']
-            Y_picked = self.CurIsotherms.loc[Index, 'StorageModulus']
-        elif self.Check_Visual_GPP.isChecked():
-            self.CurIsotherms['Distance'] = \
-                np.sqrt((np.log10(self.CurIsotherms['Frequency'])   - np.log10(X_clicked)) ** 2 + \
-                        (np.log10(self.CurIsotherms['LossModulus']) - np.log10(Y_clicked)) ** 2)
-            Index = self.CurIsotherms['Distance'].idxmin()
-            X_picked = self.CurIsotherms.loc[Index, 'Frequency']
-            Y_picked = self.CurIsotherms.loc[Index, 'LossModulus']
-        # Add the selected point to the line. 
-        Xdata = list(self.Outlier_Line[0].get_xdata())
-        Ydata = list(self.Outlier_Line[0].get_ydata())
-        if Index in self.OutlierIndex:          # Point is already available in the line. So, remove it. 
-            Xdata.remove(X_picked)
-            Ydata.remove(Y_picked)
-            self.OutlierIndex.remove(Index)
+        # Otherwise, perform the analysis. 
+        # --------------------------------------------------------------------------------------------------------------
+        # Save the extracted results. 
+        self.Results['Passes']       = Passes.copy()
+        self.Results['RutDepth']     = RutDepth.copy()
+        self.Results['Temperatures'] = Temperature.copy()
+        self.Results['Props']        = Props.copy()
+        # Update the progress bar. 
+        self.Label_InputFileUpdate.setText(f'Processing files: ' + 
+                                           f'{self.CurrentFileIndex}/{len(self.CurrentFileList)} done!')
+        self.ProgressBar.setValue(int((self.CurrentFileIndex + 0.5) / len(self.CurrentFileList) * 100))
+        # --------------------------------------------------------------------------------------------------------------
+        # Update the valid passes and their corresponding spinboxes. 
+        self.ValidPasses = [0, int(Passes.max())]
+        self.SpinBox_MaxPassNumber.setRange(self.SpinBox_MinPassNumber.value() + 1, int(Passes.max()))
+        self.SpinBox_MinPassNumber.setRange(0, self.SpinBox_MaxPassNumber.value() - 1)
+        # --------------------------------------------------------------------------------------------------------------
+        # Plot the results.
+        self.Function_Button_ResetRePlot()
+        # Update the general information in result tab. 
+        self.Function_Update_General_Information()
+    # ------------------------------------------------------------------------------------------------------------------
+    def FileExistedError(self, Title, Body):
+        # Create a QMessageBox
+        message_box = QMessageBox()
+        message_box.setIcon(QMessageBox.Critical)
+        message_box.setText(Title)
+        message_box.setInformativeText(Body)
+        message_box.setWindowTitle("File Existed Error")
+        message_box.setStandardButtons(QMessageBox.Ok)
+        # Add a checkbox
+        checkbox = QCheckBox("Do not show this again")
+        # Access the layout of the QMessageBox and add the checkbox
+        layout = message_box.layout()
+        layout.addWidget(checkbox, layout.rowCount(), 0, 1, layout.columnCount())
+        # Show the message box
+        message_box.exec_()
+        # Check the state of the checkbox after the message box is closed
+        if checkbox.isChecked():
+            self.ShowFileExistedError = False
         else:
-            Xdata.append(X_picked)
-            Ydata.append(Y_picked)
-            self.OutlierIndex.append(Index)
-        self.Outlier_Line[0].set_data(Xdata, Ydata)         # Update the line. 
-        self.fig.set_constrained_layout(True)
-        self.canvas.draw()                                  # Redraw the canvas
-    # ------------------------------------------------------------------------------------------------------------------
-    def Function_Button_Finalize(self, checked):
-        # This function will take care of finalizing the Raw Data. After clicking this button, the raw data 
-        #   pre-processing options will be disabled and the shifting options will be enabled to user. The button itself,
-        #   will also changed and will be used to redo the shifting and back to pre-processing. 
-        if checked:
-            # The pre-processing is done. Adjust the GUI. 
-            self.Button_SpecifyOutlier.setEnabled(False)
-            self.Menu_Fit_Outlier.setEnabled(False)
-            self.Button_Finalize.setText('Redo Pre-Processing')
-            self.Menu_Fit_Finalize.setText('Redo Pre-Processing')
-            self.DropDown_ShiftMethod.setCurrentIndex(0)
-            self.DropDown_ShiftModel.setCurrentIndex(0)
-            self.DropDown_ShiftSeparate.setCurrentIndex(1)
-            self.DropDown_ShiftMethod.setEnabled(True)
-            self.DropDown_ShiftModel.setEnabled(True)
-            self.DropDown_ShiftSeparate.setEnabled(False)
-            self.ReferenceTemp.setEnabled(True)
-            self.Button_ApplyShift.setEnabled(True)
-            self.Menu_Fit_ApplyShift.setEnabled(True)
-        else:
-            # The "Redo" button was pressed, therefore, go back to the pre-processing. Adjust the GUI:
-            self.Button_SpecifyOutlier.setEnabled(True)
-            self.Menu_Fit_Outlier.setEnabled(True)
-            self.Button_Finalize.setText('Finalize Inputs')
-            self.Menu_Fit_Finalize.setText('Finalize Raw Data')
-            self.DropDown_ShiftMethod.setEnabled(False)
-            self.DropDown_ShiftModel.setEnabled(False)
-            self.DropDown_ShiftSeparate.setEnabled(False)
-            self.ReferenceTemp.setEnabled(False)
-            self.Button_ApplyShift.setEnabled(False)
-            self.Menu_Fit_ApplyShift.setEnabled(False)
-            self.DropDown_FitType.setEnabled(False)
-            self.DropDown_MCModel.setEnabled(False)
-            self.Button_Construct_MC.setEnabled(False)
-            self.Menu_Fit_ConstructMC.setEnabled(False)
-            # Modify the analysis progress. 
-            self.AnalysisProgress = 0
-            # Redo the plotting. 
-            self.Plot_ComplexModulus()
-            self.Button_Finalize.setEnabled(True)           # Enable back the finalize buttons. 
-            self.Check_Visual_Gstar.setEnabled(True)        # Disable the plot type controllers.
-            self.Check_Visual_Phase.setEnabled(True)
-            self.Check_Visual_GP.setEnabled(True)
-            self.Check_Visual_GPP.setEnabled(True)
-            # Clear the shift plot and shift table. 
-            self.Shift_axes.clear()
-            self.Shift_axes.set_xlabel('Temperature (°C)', fontsize=8, fontweight='bold', color='k')
-            self.Shift_axes.set_ylabel('log(aT)', fontsize=8, fontweight='bold', color='k')
-            self.Shift_axes.set_title('Shift Factors', fontsize=8, fontweight='bold', color='k')
-            self.Shift_axes.grid(which='both', color='gray', alpha=0.1)
-            self.Shift_canvas.draw()
-            # Clear the shift factor table and fitted model. 
-            self.LabelL03_ShiftFactorModel = QLabel('Shift Factor Model: N/A')
-            self.LabelL03_ShiftFactorCoeff = QLabel('C1 = N/A\nC2 = N/A\nC3 = N/A')
-            self.ShiftFactor_Table.setRowCount(5)
-            for i, temp in enumerate([10, 20, 30, 40, 50]):
-                self.ShiftFactor_Table.setItem(i, 0, QTableWidgetItem(temp))
-                self.ShiftFactor_Table.setItem(i, 1, QTableWidgetItem('0.00'))
-            self.MCCoeff_Table.setRowCount(4)
-            for i in range(4):
-                self.MCCoeff_Table.setItem(i, 0, QTableWidgetItem(f'Parameter {i+1}'))
-                self.MCCoeff_Table.setItem(i, 1, QTableWidgetItem('N/A'))
-            self.MCIndex_Table.setRowCount(3)
-            for i, parameter in enumerate(['Rheology index', 'Crossover frequency (rad/s)', 'Crossover modulus']):
-                self.MCIndex_Table.setItem(i, 0, QTableWidgetItem(parameter))
-                self.MCIndex_Table.setItem(i, 1, QTableWidgetItem('N/A'))
-            self.MCError_Table.setRowCount(4)
-            for i, parameter in enumerate(['MLAE (|G*|)', 'MLAE (δ)', "MLAE (G')", 'MLAE (G")']):
-                self.MCError_Table.setItem(i, 0, QTableWidgetItem(parameter))
-                self.MCError_Table.setItem(i, 1, QTableWidgetItem('N/A'))
-        self.TabWidget.setCurrentIndex(0)
-    # ------------------------------------------------------------------------------------------------------------------
-    def Function_DropDown_ShiftMethod(self):
-        # This function is only adjust the GUI.
-        if self.DropDown_ShiftMethod.currentIndex() == 0:       # Free shifting. 
-            self.DropDown_ShiftSeparate.setEnabled(False)
-            self.DropDown_ShiftSeparate.setCurrentIndex(1)
-            self.DropDown_MCModel.setEnabled(False)
-            self.DropDown_FitType.setEnabled(False)
-            self.Button_Construct_MC.setEnabled(False)
-            self.DropDown_ShiftModel.clear()
-            self.DropDown_ShiftModel.addItems(['Gordon & Shaw (1994)', 'Log-linear Extrapolation', 
-                                               'Log-Parabula Extrapolation'])
-            self.DropDown_ShiftModel.setCurrentIndex(0)
-        elif self.DropDown_ShiftMethod.currentIndex() == 1:     # Shifting along side fitting the master curve. 
-            self.DropDown_ShiftSeparate.setEnabled(False)
-            self.DropDown_ShiftSeparate.setCurrentIndex(1)
-            self.DropDown_MCModel.setEnabled(True)
-            self.DropDown_FitType.setEnabled(True)
-            self.Button_Construct_MC.setEnabled(True)
-            self.DropDown_ShiftModel.clear()
-            self.DropDown_ShiftModel.addItems(['WLF', 'Kaelble', 'Modified Kaelble', 'Witczak', 
-                                               'Arrhenius', 'Modified Arrhenius'])
-            self.DropDown_ShiftModel.setCurrentIndex(0)
-    # ------------------------------------------------------------------------------------------------------------------
-    def Function_Button_ApplyShift(self):
-        # This button will apply the free shifting, provide the results, and plot the shifted values.
-        if self.DropDown_ShiftMethod.currentIndex() != 0:
-            raise Exception(f'The "Apply Shift" button should be available only when "Free Shift" is selected. " + \
-                            f"Please check manually!')
-        if self.DropDown_ShiftModel.currentIndex() == 0:
-            # Using the Gordon & Shaw (1994) method. 
-            DensityShift = {'Active': False}        # Disable density-temperature shift for now!
-            Tglassy      = -30                      # Use -30C as glassy temperature for now!
-            ShiftFactors, self.CurIsotherms = FreeShift_GordonShaw1994(self.CurIsotherms, 
-                                                                       float(self.ReferenceTemp.text()), 
-                                                                       Tglassy, 
-                                                                       DensityShift)
-        elif self.DropDown_ShiftModel.currentIndex() == 1:
-            # Using the log-linear extrapolation method. (NIY=Not Implemented Yet :)
-            MsgBox_FreeShift2_NIY = QMessageBox()
-            MsgBox_FreeShift2_NIY.setIcon(QMessageBox.Critical)
-            MsgBox_FreeShift2_NIY.setWindowTitle("Under Development")
-            MsgBox_FreeShift2_NIY.setText(f"The free shifting method using 'log-linear extrapolation' is under " + \
-                                          f"development. Will be added in future versions.\n" + \
-                                          f"Please use the Gordon & Shaw (1994) method.")
-            MsgBox_FreeShift2_NIY.setStandardButtons(QMessageBox.Ok)
-            MsgBox_FreeShift2_NIY.exec_()
-            return
-        elif self.DropDown_ShiftModel.currentIndex() == 2:
-            # Using the log-parabola extrapolation method. 
-            MsgBox_FreeShift3_NIY = QMessageBox()
-            MsgBox_FreeShift3_NIY.setIcon(QMessageBox.Critical)
-            MsgBox_FreeShift3_NIY.setWindowTitle("Under Development")
-            MsgBox_FreeShift3_NIY.setText(f"The free shifting method using 'log-Parabola extrapolation' is under " + \
-                                          f"development. Will be added in future versions.\n" + \
-                                          f"Please use the Gordon & Shaw (1994) method.")
-            MsgBox_FreeShift3_NIY.setStandardButtons(QMessageBox.Ok)
-            MsgBox_FreeShift3_NIY.exec_()
-            return
-        # Saving the shift factors. 
-        self.Results['ShiftFactor_Data'] = ShiftFactors
-        # -----------------------------------------------
-        # Modify the analysis progress. 
-        self.AnalysisProgress = 1
-        # -----------------------------------------------
-        # Plot the results. 
-        self.Plot_ComplexModulus()
-        # -----------------------------------------------
-        # Adjust the GUI and show the results in the result section. 
-        self.Button_ApplyShift.setEnabled(False)
-        self.ReferenceTemp.setEnabled(False)
-        self.DropDown_ShiftSeparate.setEnabled(False)
-        self.DropDown_ShiftModel.setEnabled(False)
-        self.DropDown_ShiftMethod.setEnabled(False)
-        self.DropDown_MCModel.setEnabled(True)
-        self.DropDown_FitType.setEnabled(True)
-        self.Button_Construct_MC.setEnabled(True)
-        # -----------------------------------------------
-        # Plot the shift factors. 
-        self.Shift_axes.clear()
-        self.Shift_axes.plot(list(ShiftFactors.keys()), list(ShiftFactors.values()), ls='--', lw=0.5,
-                             marker='o', ms=3, color='k', label='datapoints')
-        self.Shift_axes.set_xlabel('Temperature (°C)', fontsize=8, fontweight='bold', color='k')
-        self.Shift_axes.set_ylabel('log(aT)', fontsize=8, fontweight='bold', color='k')
-        self.Shift_axes.set_title('Shift Factors', fontsize=8, fontweight='bold', color='k')
-        self.Shift_axes.grid(which='both', color='gray', alpha=0.1)
-        self.Shift_axes.legend(fontsize=8)
-        self.Shift_canvas.draw()
-        # -----------------------------------------------
-        # Fill the shift factor text section. 
-        Temp = list(ShiftFactors.keys())
-        aT   = list(ShiftFactors.values())
-        self.ShiftFactor_Table.setRowCount(len(Temp))
-        for i, temp in enumerate(Temp):
-            self.ShiftFactor_Table.setItem(i, 0, QTableWidgetItem(f'{temp:.2f}'))
-            self.ShiftFactor_Table.setItem(i, 1, QTableWidgetItem(f'{aT[i]:.4f}'))
-        # Fill the labels.
-        C1, C2 = Fit_ShiftModel_WLF(Temp, aT, float(self.ReferenceTemp.text()))
-        self.LabelL03_ShiftFactorModel.setText('Shift Factor Model: WLF\n\t(Only FYI)')
-        self.LabelL03_ShiftFactorCoeff.setText(f'    C1 = {C1:.3f}\n    C2 = {C2:.3f}')
-    # ------------------------------------------------------------------------------------------------------------------
-    def Function_DropDown_MCModel_Change(self):
-        if self.DropDown_MCModel.currentIndex() == 0:       # CA model is selected.
-            self.DropDown_FitType.clear()
-            self.DropDown_FitType.addItems(['Fit to Complex modulus (|G*|)', 'Fit to Phase angle (δ)', 
-                                            "Fit to Storage modulus (G')", 'Fit to Loss modulus(G")'])
-            self.DropDown_FitType.setCurrentIndex(0)
-        elif self.DropDown_MCModel.currentIndex() == 1:
-            self.DropDown_FitType.clear()
-            self.DropDown_FitType.addItems(['Fit to Complex modulus (|G*|) [4 params]', 
-                                            "Fit to Storage modulus (G') [4 params]", 
-                                            'Fit to Loss modulus(G") [4 params]', 
-                                            'Fit to Complex modulus (|G*|) and Phase angle (δ) simultaneously ' + 
-                                            '[7 param]'])
-            self.DropDown_FitType.setCurrentIndex(0)
-        else:           # Will be completed later. 
-            pass
-    # ------------------------------------------------------------------------------------------------------------------
-    def Function_Button_Construct_MC(self):
-        # This is the main function that performs the construction of the master curve. 
-        # Check if the free shift was applied. 
-        if self.DropDown_ShiftMethod.currentIndex() == 0:       # For the already shifted isotherms. 
-            # Check the model. 
-            if self.DropDown_MCModel.currentIndex() == 0:       # For the Christensen-Anderson Model.
-                MC_Res = Fit_MC_ChristensenAnderson(self.CurIsotherms, self.DropDown_FitType.currentIndex())
-                self.Results['MC_Model'] = 'CA'
-            elif self.DropDown_MCModel.currentIndex() == 1:     # For the Christensen-Anderson-Marasteanu Model. 
-                MC_Res = Fit_MC_ChristensenAndersonMarasteanu(self.CurIsotherms, self.DropDown_FitType.currentIndex())
-                self.Results['MC_Model'] = 'CAM'
-
-        # Save the results. 
-        self.Results['MC_FitType']      = self.DropDown_FitType.currentIndex()
-        self.Results['MC_Coeff']        = MC_Res['MC_Coeff']
-        self.Results['MC_Coeff_Labels'] = MC_Res['MC_Coeff_Labels']
-        self.Results['MC_Index']        = MC_Res['MC_Index']
-        self.Results['MC_Index_Labels'] = MC_Res['MC_Index_Labels']
-        self.Results['MC_Error']        = MC_Res['MC_Error']
-        self.Results['MC_Error_Labels'] = MC_Res['MC_Error_Labels']
-        self.Results['MC_Plot']         = {'Freq': MC_Res['Plot_Freq'] , 'Gstar': MC_Res['Plot_Gstar'], 
-                                           'GP': MC_Res['Plot_Storage'], 'GPP': MC_Res['Plot_Loss'],
-                                           'Phase': MC_Res['Plot_Phase']}
-        # Modify the analysis progress. 
-        self.AnalysisProgress = 2
-        # Call the plotting function. 
-        self.Plot_ComplexModulus()
-        # -----------------------------------------------
-        # Adjust the GUI and show the results in the result section. 
-        self.DropDown_MCModel.setEnabled(False)
-        self.DropDown_FitType.setEnabled(False)
-        self.Button_Construct_MC.setEnabled(False)
-        self.Menu_Fit_ConstructMC.setEnabled(False)
-        # -----------------------------------------------
-        # Fill the Master curve text section.
-        self.LabelL03_MCModel.setText(f'Master curve model: {self.Results["MC_Model"]}')
-        self.LabelL03_MCFit.setText(f'Master curve fitting type: {self.DropDown_FitType.currentText()}')
-        self.MCCoeff_Table.setRowCount(len(self.Results["MC_Coeff_Labels"]))
-        for i in range(len(self.Results["MC_Coeff_Labels"])):
-            self.MCCoeff_Table.setItem(i, 0, QTableWidgetItem(self.Results["MC_Coeff_Labels"][i]))
-            if i == 0:
-                self.MCCoeff_Table.setItem(i, 1, QTableWidgetItem(f'{self.Results["MC_Coeff"][i]:.4e}'))
-            else:
-                self.MCCoeff_Table.setItem(i, 1, QTableWidgetItem(f'{self.Results["MC_Coeff"][i]:.4f}'))
-        self.MCIndex_Table.setRowCount(len(self.Results["MC_Index_Labels"]))
-        for i in range(len(self.Results['MC_Index_Labels'])):
-            self.MCIndex_Table.setItem(i, 0, QTableWidgetItem(self.Results['MC_Index_Labels'][i]))
-            if i == 0:
-                self.MCIndex_Table.setItem(i, 1, QTableWidgetItem(f'{self.Results["MC_Index"][i]:.4e}'))
-            else:
-                self.MCIndex_Table.setItem(i, 1, QTableWidgetItem(f'{self.Results["MC_Index"][i]:.4f}'))
-        self.MCError_Table.setRowCount(len(self.Results["MC_Error_Labels"]))
-        for i in range(len(self.Results['MC_Error_Labels'])):
-            self.MCError_Table.setItem(i, 0, QTableWidgetItem(self.Results['MC_Error_Labels'][i]))
-            self.MCError_Table.setItem(i, 1, QTableWidgetItem(f'{self.Results["MC_Error"][i]:.6f}'))
-        self.TabWidget.setCurrentIndex(2)
-    # ------------------------------------------------------------------------------------------------------------------
-
-    # ------------------------------------------------------------------------------------------------------------------
-
+            self.ShowFileExistedError = True
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================
@@ -1458,9 +1213,9 @@ if __name__ == '__main__':
 
     app = QApplication(sys.argv)
     # Connect to a SQL database. 
-    conn = sqlite3.connect("C:\\Users\\SF.Abdollahi.ctr\\OneDrive - DOT OST\\GitHub_HWTT_Analysis_Tool\\HWTT_Analysis_Tool\\example\\PTF5_HWTT.db")
+    conn = sqlite3.connect("C:\\Users\\SF.Abdollahi.ctr\\OneDrive - DOT OST\\GitHub_HWTT_Analysis_Tool\\HWTT_Analysis_Tool\\example\\PTF5_DB.db")
     cursor = conn.cursor()
-    Main = Main_Window(conn, cursor, 'PTF5_HWTT.db', 'C:\\Users\\SF.Abdollahi.ctr\\OneDrive - DOT OST\\GitHub_HWTT_Analysis_Tool\\HWTT_Analysis_Tool\\example')
+    Main = Main_Window(conn, cursor, 'PTF5_DB.db', 'C:\\Users\\SF.Abdollahi.ctr\\OneDrive - DOT OST\\GitHub_HWTT_Analysis_Tool\\HWTT_Analysis_Tool\\example')
     Main.show()
     app.exec()
 

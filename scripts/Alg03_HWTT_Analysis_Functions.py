@@ -126,7 +126,7 @@ def HWTT_Analysis(X, Y):
         return alpha * (x - gamma) ** beta + Phi
     # Fit the second model (NOTE: this fitted parameters are in the scaled domain). 
     Coeff2, _ = curve_fit(ModelPower_Part2_ForFitting, Xp2t, Yp2t, 
-                          p0=[2.5, -0.8], bounds=([1.5, -10.5], [10.5, -0.1]))
+                          p0=[2.5, -0.8], bounds=([1.005, -10.5], [5.5, -0.1]))
     # Extract all parameters. 
     betat  = Coeff2[0]
     gammat = Coeff2[1]
