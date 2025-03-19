@@ -84,6 +84,8 @@ def Append_to_Database(conn, cursor, data):
     """
     # Add the data using execute command. 
     # Insert data into the table
+    print(data['Max_Pass'])
+    print(type(data['Max_Pass']))
     cursor.execute("""
     INSERT INTO HWTT (
         Bnumber, Lab_Aging, RepNumber, Wheel_Side, FileName, FileDirectory, Data, Data_shape, Data_dtype, 
@@ -97,9 +99,9 @@ def Append_to_Database(conn, cursor, data):
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
         ?, ?, ?)
     """, (
-        data["Bnumber"], data["Lab_Aging"], data["RepNumber"], data["Wheel_Side"], 
-        data["FileName"], data["FileDirectory"], data["Data"], data["Data_shape"], data["Data_dtype"], 
-        data["StrippingNumber"], data["Max_Rut_mm"], data["Max_Pass"], data["RuttingAt10k_mm"], data["RuttingAt20k_mm"], 
+        data["Bnumber"], data["Lab_Aging"], data["RepNumber"], data["Wheel_Side"], data["FileName"], 
+        data["FileDirectory"], data["Data"], data["Data_shape"], data["Data_dtype"], int(data["StrippingNumber"]), 
+        data["Max_Rut_mm"], int(data["Max_Pass"]), data["RuttingAt10k_mm"], data["RuttingAt20k_mm"], 
         data["ModelCoeff_a"], data["ModelCoeff_b"], data["ModelCoeff_alpha"], data["ModelCoeff_beta"], 
         data["ModelCoeff_gamma"], data["ModelCoeff_Phi"], data["Stripping_Rutting_mm"], data["Stripping_Rutting_Pass"], 
         data["SIP"], data["SIP_Yvalue"], data["CreepLine_Slope"], data["CreepLine_Intercept"], 
