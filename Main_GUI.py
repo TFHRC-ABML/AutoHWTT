@@ -64,7 +64,7 @@ def Disclaimer():
     This function only provide the disclaimer before running the software. 
     """
     TEXT = """
-    The  HWTT analysis product is disseminated by the Federal Highway Administration (FHWA), U.S. Department of \
+    The AutoHWTT analysis product is disseminated by the Federal Highway Administration (FHWA), U.S. Department of \
 Transportation (USDOT) in the interest of information exchange. The United States Government and analysis product \
 developers assume no liability for its content or use.
     
