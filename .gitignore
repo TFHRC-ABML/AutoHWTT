@@ -1,5 +1,9 @@
 # Ignore all pickle files, which are usually created during debugging.
 *.pkl
+# Ignore all svg and pptx files, which are developed for the assets. 
+*.svg
+*.pptx
+*.pdf
 # Ignore all test files (.py or .ipynb) which are usually used for debugging. 
 test.*
 test*
