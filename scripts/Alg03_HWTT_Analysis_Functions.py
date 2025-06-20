@@ -8,13 +8,50 @@
 import os
 import numpy as np
 import pandas as pd
-from scipy.optimize import curve_fit
+from time import perf_counter
+from scipy.optimize import curve_fit, differential_evolution
+from sklearn.metrics import r2_score
 
 
 def HWTT_Analysis(X, Y):
     """
-    This is the main function which analyze the HWTT data by fitting two part model and extracting the analysis 
-    parameters. 
+    This is the main function which analyze the HWTT data by fitting Two-Part Model (2PP), Yin et al. (2014) model, and 
+    6th degree polynomial model and extracting the analysis parameters. 
+
+    :param X: An array of the number of passes (should not include NaN values). 
+    :param Y: An array of the rut depths (should not include NaN values). 
+    """
+    # First run the 2PP model. 
+    TimeTrack = perf_counter()
+    Res2PP = HWTT_Analysis_2PP(X, Y)
+    Res2PP['RunTime'] = perf_counter() - TimeTrack
+    # -------------------------------------------------
+    # Run the Yin et al. model. 
+    TimeTrack = perf_counter()
+    ResYin = HWTT_Analysis_Yin(X, Y)
+    ResYin['RunTime'] = perf_counter() - TimeTrack
+    # -------------------------------------------------
+    # Run the 6th degree polynomial model. 
+    TimeTrack = perf_counter()
+    Res6deg = HWTT_Analysis_6deg(X, Y)
+    Res6deg['RunTime'] = perf_counter() - TimeTrack
+    # -------------------------------------------------
+    # Aggregate and return the results.
+    return {
+        '2PP' : Res2PP, 
+        'Yin' : ResYin,
+        '6deg': Res6deg,
+    } 
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def HWTT_Analysis_2PP(X, Y):
+    """
+    This is the main function to fit the proposed Two-Part Power (2PP) model to the HWTT raw data. This model has been 
+    developed at the Asphalt Binder and Mixture Laboratory (ABML) of the FHWA's Turner-Fairbank Highway Research Center 
+    (TFHRC). 
 
     :param X: An array of the number of passes (should not include NaN values). 
     :param Y: An array of the rut depths (should not include NaN values). 
@@ -147,12 +184,12 @@ def HWTT_Analysis(X, Y):
     # ------------------------------------------------------------------------------------------------------------------
     # Find the SIP coefficient as the conflicting point between the tangential line to model at stripping number (SN) 
     #   and the tangential line to the model at the end of the curve. 
-    Line1 = [Coeff[0] * Coeff[1] * (SN_estimated ** (Coeff[1] - 1)), None]
-    Line1[1] = ModelPower(SN_estimated, Coeff[0], Coeff[1]) - Line1[0] * SN_estimated
-    Line2 = [alpha * beta * (X.max() - gamma) ** (beta - 1), None]
-    Line2[1] = YY[-1] - Line2[0] * X.max()
-    SIP = (Line2[1] - Line1[1]) / (Line1[0] - Line2[0])
-    SIP_Yval = Line1[0] * SIP + Line1[1]
+    CreepLine = [Coeff[0] * Coeff[1] * (SN_estimated ** (Coeff[1] - 1)), None]
+    CreepLine[1] = ModelPower(SN_estimated, Coeff[0], Coeff[1]) - CreepLine[0] * SN_estimated
+    TangLine = [alpha * beta * (X.max() - gamma) ** (beta - 1), None]
+    TangLine[1] = YY[-1] - TangLine[0] * X.max()
+    SIP = (TangLine[1] - CreepLine[1]) / (CreepLine[0] - TangLine[0])
+    SIP_Yval = CreepLine[0] * SIP + CreepLine[1]
     # For the tangential line at the end of the model, we use both fitted model (see above lines), and testing the same 
     #   sweeping concept on data points (not in effect right now, see below commented lines). For this purpose, the 
     #   line with the lowest intercept is used. Sweeping with 50 datapoints increasing rate.
@@ -179,21 +216,217 @@ def HWTT_Analysis(X, Y):
     # #         SIPPass = SN_estimated
     # # SIP = Line1[0] * SIPPass + Line1[1]
     # ------------------------------------------------------------------------------------------------------------------
+    # Calculating the SIP based on the constant threshold value of 12.5 mm. 
+    if ModelPower(SN_estimated, Coeff[0], Coeff[1]) > 12.5:
+        SIPAdj      = np.nan
+        SIPAdj_Yval = np.nan
+    else:
+        X_Threshold = np.exp(np.log((12.5 - Phi) / alpha) / beta) + gamma
+        TangLineAdj  = [alpha * beta * ((X_Threshold - gamma) ** (beta - 1)), 0]
+        TangLineAdj[1] = ModelPower_Part2(X_Threshold, alpha, beta, gamma, Phi) - TangLineAdj[0] * X_Threshold
+        SIPAdj = (TangLineAdj[1] - CreepLine[1]) / (CreepLine[0] - TangLineAdj[0])
+        SIPAdj_Yval = CreepLine[0] * SIP + CreepLine[1]
+    # ------------------------------------------------------------------------------------------------------------------
     # Return the results. 
+    return {
+        'Maximum_Rutting_mm'            : MaxRut,
+        'Maximum_Passes'                : MaxPass,
+        'Rutting@10k_mm'                : Rut10k,
+        'Rutting@20k_mm'                : Rut20k,
+        'Rutting_PowerModel_Coeff'      : Coeff,
+        'Rutting_PowerModel_Part2_Coeff': [alpha, beta, gamma, Phi],
+        'Stripping_Rutting_mm'          : StripRut,
+        'Stripping_Rutting_Pass'        : StripRutX,
+        'SIP'                           : SIP,
+        'SIP_Yval_mm'                   : SIP_Yval,
+        'Stripping_Number'              : SN_estimated,
+        'CreepLine'                     : CreepLine,
+        'TangentLine'                   : TangLine,
+        'TangentLine_Adj'               : TangLineAdj,
+        'Xmodel'                        : XX,
+        'Ymodel'                        : YY,
+    }
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def HWTT_Analysis_Yin(X, Y):
+    """
+    This is the main function to fit the proposed model by Yin et al. (2014) to the HWTT raw data. Please refer to the 
+    following reference for more details: 
+    "Yin, F., Arambula, E., Lytton, R., Martin, A. E., & Cucalon, L. G. (2014). Novel method for moisture susceptibility 
+    and rutting evaluation using Hamburg wheel tracking test. Transportation Research Record, 2446(1), 1-7."
+
+    :param X: An array of the number of passes (should not include NaN values). 
+    :param Y: An array of the rut depths (should not include NaN values). 
+    """
+    # First extract the maximum number of passes and its corresponding rut depth. 
+    MaxRut = Y[-1]
+    MaxPass= X[-1]
+    # Step 1: Fit the first model to estimate the Stripping Number (SN). 
+    LNcoeff, _ = curve_fit(YinModel, X, Y, p0=[2.0, 50000, 2.5], maxfev=5000, 
+                           bounds=([0.5, X.max() + 500, 0.05], [10000.0, 100000, 10.0]))
+    # Calculate the SN. 
+    SN = LNcoeff[1] * np.exp((LNcoeff[2] + 1) / -LNcoeff[2])
+    LCSN = SN
+    # ------------------------------------------------------------------------------------------------------------------
+    # Step 2: Fit Tseng-Lytton model to the first portion of the data. 
+    Indx = np.where(X < SN)[0]
+    X1   = X[Indx]
+    Y1   = Y[Indx]
+    ObjectiveFunction = lambda params: np.sum((Y1 - TsengLyttonModel(X1, params[0], 10 ** params[1], params[2])) ** 2)
+    result = differential_evolution(ObjectiveFunction, [(2.0, 50.0), (3.0, 10.0), (0.01, 0.5)])    
+    TLcoeff = result.x
+    TLcoeff[1] = 10 ** TLcoeff[1]
+    R2 = r2_score(Y1, TsengLyttonModel(X1, TLcoeff[0], TLcoeff[1], TLcoeff[2])) * 100
+    if R2 < 90: 
+        raise Exception(f'Problem in fitting Tseng-Lytton model, which result in R2={R2:.2f}%')
+    # Calculate Δε
+    T      = 62                     # Thickness of the samples (assumed 62 mm). 
+    EpsVPmax = TLcoeff[0] / T
+    Alpha    = TLcoeff[1]
+    Lambda   = TLcoeff[2]
+    DeltaEps10 = (Alpha ** Lambda) * Lambda * EpsVPmax * \
+        np.exp(-1 * ((Alpha / 10000) ** Lambda)) * (10000 ** (-1 - Lambda)) 
+    # ------------------------------------------------------------------------------------------------------------------
+    # Calculate the ε.
+    if X2.max() > SN:
+        StripStrn = (Y - TsengLyttonModel(X, TLcoeff[0], TLcoeff[1], TLcoeff[2])) / T
+        IndxST = np.where(X > SN)[0]
+        X2 = X[IndxST]
+        Y2 = StripStrn[IndxST]
+        # Fit the third model for the stripping strain. 
+        ObjectiveFunctionST = lambda params: np.sum((Y2 - StripModel(X2, 10 ** params[0], 10 ** params[1], SN)) ** 2)
+        resultST = differential_evolution(ObjectiveFunctionST, bounds=[(-5.0, -1.0), (-7.0, -2.0)])    
+        STcoeff = 10 ** resultST.x
+        # Calculting the LCST. 
+        EpsST0 = STcoeff[0]
+        Theta  = STcoeff[1]
+        LCST = (1 / Theta) * np.log((12.5 / (T * EpsST0)) + 1)
+        # Evaluate the goodness of fit. 
+        R2 = r2_score(Y2, StripModel(X2, STcoeff[0], STcoeff[1], SN)) * 100
+        if R2 < 90:
+            raise Warning(f'Warning: Problem in fitting Stripping Model, which result in R2={R2:.2f}%, LCST={LCST:.0f}')
+    else:
+        LCST = -1
+        STcoeff = np.array([-1, -1])
+    # ------------------------------------------------------------------------------------------------------------------
+    # Calculate the CRD10, and CRD20. 
+    Rut10k = TsengLyttonModel(10000, TLcoeff[0], TLcoeff[1], TLcoeff[2])
+    Rut20k = TsengLyttonModel(20000, TLcoeff[0], TLcoeff[1], TLcoeff[2])
+    # Calculating the stripping rutting. 
+    idx = np.argmax(Y[-10:])
+    StripRutX = X[-10:][idx]
+    StripRut = Y[-10:].max() - TsengLyttonModel(StripRutX, TLcoeff[0], TLcoeff[1], TLcoeff[2])
+    if StripRut < 0: 
+        StripRut = 0 
+    # ------------------------------------------------------------------------------------------------------------------
+    # Calculating the stripping, using two method: (i) at the maximum passes, (ii) at the threshold of 12.5 mm. 
+    #   First method: calculating the SIP using the tangential line at the maximum passes. 
+    CreepLine = [diffYinModel(SN, LNcoeff[0], LNcoeff[1], LNcoeff[2]), 0]
+    CreepLine[1] = YinModel(SN, LNcoeff[0], LNcoeff[1], LNcoeff[2]) - CreepLine[0] * SN
+    TangLine  = [diffYinModel(X.max(), LNcoeff[0], LNcoeff[1], LNcoeff[2]), 0]
+    TangLine[1] = YinModel(X.max(), LNcoeff[0], LNcoeff[1], LNcoeff[2]) - TangLine[0] * X.max()
+    SIP = (TangLine[1] - CreepLine[1]) / (CreepLine[0] - TangLine[0])
+    SIP_Yval = CreepLine[0] * SIP + CreepLine[1]
+    #   Second method: calculating the SIP using the tangential line at the threshold of 12.5 mm. 
+    X_Threshold = LNcoeff[1] / np.exp((12.5 / LNcoeff[0]) ** (-LNcoeff[2]))
+    TangLineAdj  = [diffYinModel(X_Threshold, LNcoeff[0], LNcoeff[1], LNcoeff[2]), 0]
+    TangLineAdj[1] = YinModel(X_Threshold, LNcoeff[0], LNcoeff[1], LNcoeff[2]) - TangLineAdj[0] * X_Threshold
+    SIPAdj = (TangLineAdj[1] - CreepLine[1]) / (CreepLine[0] - TangLineAdj[0])
+    SIPAdj_Yval = CreepLine[0] * SIP + CreepLine[1]
+    # ------------------------------------------------------------------------------------------------------------------
+    # Constructing the final model using the Step 1 model. 
+    XX = np.linspace(0, X.max(), num=20001)
+    YY = YinModel(XX, LNcoeff[0], LNcoeff[1], LNcoeff[2])
+    # ------------------------------------------------------------------------------------------------------------------
+    # Prepare the results for return and return the results. 
+    return {
+        'Maximum_Rutting_mm'    : MaxRut,
+        'Maximum_Passes'        : MaxPass,
+        'Rutting@10k_mm'        : Rut10k,
+        'Rutting@20k_mm'        : Rut20k,
+        'Rutting_Step1_Coeff'   : LNcoeff,
+        'Rutting_Step2_Coeff'   : TLcoeff,
+        'Rutting_Step3_Coeff'   : STcoeff,
+        'Stripping_Rutting_mm'  : StripRut,
+        'Stripping_Rutting_Pass': StripRutX,
+        'SIP'                   : SIP,
+        'SIP_Yval_mm'           : SIP_Yval,
+        'SIP_Adj'               : SIPAdj,
+        'SIP_Adj_Yval_mm'       : SIPAdj_Yval,
+        'Stripping_Number'      : SN,
+        'CreepLine'             : CreepLine,
+        'TangentLine'           : TangLine,
+        'TangentLine_Adj'       : TangLineAdj,
+        'Xmodel'                : XX,
+        'Ymodel'                : YY,
+        'LCSN'                  : LCSN,
+        'LCST'                  : LCST, 
+        'DeltaEps@10k'          : DeltaEps10,
+    }
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def HWTT_Analysis_6deg(X, Y):
+    """
+    This is the main function to fit the 6th degree polynomial model which has been used in many studies in the 
+    literature. This is a simple and typical model for quick analysis of the HWTT results. 
+
+    :param X: An array of the number of passes (should not include NaN values). 
+    :param Y: An array of the rut depths (should not include NaN values). 
+    """
+    # First extract the maximum number of passes and its corresponding rut depth. 
+    MaxRut = Y[-1]
+    MaxPass= X[-1]
+    # Fit a 6th degree polynomial model. 
+    Coeff = np.polyfit(X, Y, 6)
+    # Find the inflection points, if any. 
+    First_Derivative  = np.polyder(Coeff, m=1)
+    Second_Derivative = np.polyder(Coeff, m=2)
+    Roots = np.roots(Second_Derivative)
+    Roots = np.unique([Roots[i] for i in range(len(Roots)) if Roots[i].imag == 0])
+    # Calculate the CRD at 10,000 and 20,000 passes. 
+    SN = abs(Roots[0])
+    Intercept = np.interp(SN, X, Y)
+    if SN < 10000:
+        Rut10k = Intercept + np.polyval(First_Derivative, SN) * (10000 - SN)
+        Rut20k = Intercept + np.polyval(First_Derivative, SN) * (20000 - SN)
+    elif SN < 20000:
+        Rut10k = np.interp(10000, X, Y)
+        Rut20k = Intercept + np.polyval(First_Derivative, SN) * (20000 - SN)
+    else: 
+        Rut10k = np.interp(10000, X, Y)
+        Rut20k = np.interp(20000, X, Y)
+    # ------------------------------------------------------------------------------------------------------------------
+    # Calculating the stripping rutting. 
+    idx = np.argmax(Y[-10:])
+    StripRutX = X[-10:][idx]
+    if StripRutX < SN:
+        StripRut = Y[-10:].max() - np.interp(StripRutX, X, Y)
+    else:
+        StripRut = Y[-10:].max() - (Intercept + np.polyval(First_Derivative, SN) * (StripRutX - SN))
+    if StripRut < 0: 
+        StripRut = 0 
+    # ------------------------------------------------------------------------------------------------------------------
+    # Constructing the final model. 
+    XX = np.linspace(0, X.max(), num=20001)
+    YY = np.polyval(Coeff, XX)
+    # ------------------------------------------------------------------------------------------------------------------
+    # Prepare the results for return and return the results. 
     return {
         'Maximum_Rutting_mm': MaxRut,
         'Maximum_Passes': MaxPass,
         'Rutting@10k_mm': Rut10k,
         'Rutting@20k_mm': Rut20k,
-        'Rutting_PowerModel_Coeff': Coeff,
-        'Rutting_PowerModel_Part2_Coeff': [alpha, beta, gamma, Phi],
+        'Rutting_6degPolynomial_Coeff': Coeff,
         'Stripping_Rutting_mm': StripRut,
         'Stripping_Rutting_Pass': StripRutX,
-        'SIP': SIP,
-        'SIP_Yval_mm': SIP_Yval,
-        'Stripping_Number': SN_estimated,
-        'CreepLine': Line1,
-        'TangentLine': Line2,
+        'Stripping_Number': SN,
+        'CreepLine': [np.polyval(First_Derivative, SN), Intercept],
         'Xmodel': XX,
         'Ymodel': YY,
     }
@@ -229,6 +462,72 @@ def ModelPower_Part2(x, alpha, beta, gamma, Phi):
     :return: Calculated rut depth, corresponds to the number passes (mm). 
     """
     return alpha * (x - gamma) ** beta + Phi
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def YinModel(x, ro, LCult, beta): 
+    """
+    This function defines the model used in step 1 of the Yin et al. (2014) approach to estimate the Stripping 
+    Number (SN). 
+
+    :param x: Float or array of the number of passes. 
+    :param ro: Model parameter. 
+    :param LCult: Model parameter. 
+    :param beta: Model parameter. 
+    :return: Calculated rut depth, corresponds to the number passes (mm). 
+    """
+    return ro * (np.log(LCult / x) ** (-1 / beta))
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def diffYinModel(x, ro, LCult, beta): 
+    """
+    This function calculates the slope of the model used in step 1 of the Yin et al. (2014) approach. 
+
+    :param x: Float or array of the number of passes. 
+    :param ro: Model parameter. 
+    :param LCult: Model parameter. 
+    :param beta: Model parameter. 
+    :return: Calculated rut depth, corresponds to the number passes (mm). 
+    """
+    return (ro / beta / x) * (np.log(LCult / x) ** ((-1 - beta) / beta))
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def TsengLyttonModel(x, RutMax, Alpha, Lambda): 
+    """
+    This function is the model used in the Step 2 of the Yin et al. (2014) approach to calculate the corrected rut 
+    depth (CRD). 
+
+    :param x: Float or array of the number of passes. 
+    :param RutMax: Model parameter, maximum rut depth (mm). 
+    :param Alpha: Model parameter. 
+    :param Lambda: Model parameter. 
+    :return: Calculated corrected rut depth, corresponds to the number passes (mm). 
+    """
+    return RutMax * np.exp(-((Alpha / x) ** Lambda))
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def StripModel(x, EpsST0, Theta, SN): 
+    """
+    This function is the stripping model used in Step 3 of the Yin et al. (2014) approach. 
+
+    :param x: Float or array of the number of passes. 
+    :param EpsST0: Model parameter. 
+    :param Theta: Model parameter. 
+    :param SN: Stripping Number. 
+    :return: Calculated stripping strain, corresponds to the number passes (mm). 
+    """
+    return EpsST0 * (np.exp(Theta * (x - SN)) - 1)
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================
