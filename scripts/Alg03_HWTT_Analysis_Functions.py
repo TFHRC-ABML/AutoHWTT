@@ -225,7 +225,7 @@ def HWTT_Analysis_2PP(X, Y):
         TangLineAdj  = [alpha * beta * ((X_Threshold - gamma) ** (beta - 1)), 0]
         TangLineAdj[1] = ModelPower_Part2(X_Threshold, alpha, beta, gamma, Phi) - TangLineAdj[0] * X_Threshold
         SIPAdj = (TangLineAdj[1] - CreepLine[1]) / (CreepLine[0] - TangLineAdj[0])
-        SIPAdj_Yval = CreepLine[0] * SIP + CreepLine[1]
+        SIPAdj_Yval = CreepLine[0] * SIPAdj + CreepLine[1]
     # ------------------------------------------------------------------------------------------------------------------
     # Return the results. 
     return {
@@ -239,6 +239,8 @@ def HWTT_Analysis_2PP(X, Y):
         'Stripping_Rutting_Pass'        : StripRutX,
         'SIP'                           : SIP,
         'SIP_Yval_mm'                   : SIP_Yval,
+        'SIP_Adj'                       : SIPAdj,
+        'SIP_Adj_Yval_mm'               : SIPAdj_Yval,
         'Stripping_Number'              : SN_estimated,
         'CreepLine'                     : CreepLine,
         'TangentLine'                   : TangLine,
@@ -336,7 +338,7 @@ def HWTT_Analysis_Yin(X, Y):
     TangLineAdj  = [diffYinModel(X_Threshold, LNcoeff[0], LNcoeff[1], LNcoeff[2]), 0]
     TangLineAdj[1] = YinModel(X_Threshold, LNcoeff[0], LNcoeff[1], LNcoeff[2]) - TangLineAdj[0] * X_Threshold
     SIPAdj = (TangLineAdj[1] - CreepLine[1]) / (CreepLine[0] - TangLineAdj[0])
-    SIPAdj_Yval = CreepLine[0] * SIP + CreepLine[1]
+    SIPAdj_Yval = CreepLine[0] * SIPAdj + CreepLine[1]
     # ------------------------------------------------------------------------------------------------------------------
     # Constructing the final model using the Step 1 model. 
     XX = np.linspace(0, X.max(), num=20001)
@@ -392,13 +394,13 @@ def HWTT_Analysis_6deg(X, Y):
     Roots = np.unique([Roots[i] for i in range(len(Roots)) if Roots[i].imag == 0])
     # Calculate the CRD at 10,000 and 20,000 passes. 
     SN = abs(Roots[0])
-    Intercept = np.interp(SN, X, Y)
+    SN_Yval = np.interp(SN, X, Y)
     if SN < 10000:
-        Rut10k = Intercept + np.polyval(First_Derivative, SN) * (10000 - SN)
-        Rut20k = Intercept + np.polyval(First_Derivative, SN) * (20000 - SN)
+        Rut10k = SN_Yval + np.polyval(First_Derivative, SN) * (10000 - SN)
+        Rut20k = SN_Yval + np.polyval(First_Derivative, SN) * (20000 - SN)
     elif SN < 20000:
         Rut10k = np.interp(10000, X, Y)
-        Rut20k = Intercept + np.polyval(First_Derivative, SN) * (20000 - SN)
+        Rut20k = SN_Yval + np.polyval(First_Derivative, SN) * (20000 - SN)
     else: 
         Rut10k = np.interp(10000, X, Y)
         Rut20k = np.interp(20000, X, Y)
@@ -409,7 +411,7 @@ def HWTT_Analysis_6deg(X, Y):
     if StripRutX < SN:
         StripRut = Y[-10:].max() - np.interp(StripRutX, X, Y)
     else:
-        StripRut = Y[-10:].max() - (Intercept + np.polyval(First_Derivative, SN) * (StripRutX - SN))
+        StripRut = Y[-10:].max() - (SN_Yval + np.polyval(First_Derivative, SN) * (StripRutX - SN))
     if StripRut < 0: 
         StripRut = 0 
     # ------------------------------------------------------------------------------------------------------------------
@@ -427,7 +429,8 @@ def HWTT_Analysis_6deg(X, Y):
         'Stripping_Rutting_mm': StripRut,
         'Stripping_Rutting_Pass': StripRutX,
         'Stripping_Number': SN,
-        'CreepLine': [np.polyval(First_Derivative, SN), Intercept],
+        'CreepLine': [np.polyval(First_Derivative, SN), 
+                      SN_Yval - np.polyval(First_Derivative, SN) * SN],
         'Xmodel': XX,
         'Ymodel': YY,
     }
