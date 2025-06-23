@@ -291,6 +291,7 @@ def HWTT_Analysis_Yin(X, Y):
         np.exp(-1 * ((Alpha / 10000) ** Lambda)) * (10000 ** (-1 - Lambda)) 
     # ------------------------------------------------------------------------------------------------------------------
     # Calculate the ε.
+    X2 = X[X > SN]
     if X2.max() > SN:
         StripStrn = (Y - TsengLyttonModel(X, TLcoeff[0], TLcoeff[1], TLcoeff[2])) / T
         IndxST = np.where(X > SN)[0]
