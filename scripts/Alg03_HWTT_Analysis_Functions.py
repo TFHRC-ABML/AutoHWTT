@@ -6,6 +6,7 @@
 
 # Importing the required libraries.
 import os
+import warnings
 import numpy as np
 import pandas as pd
 from time import perf_counter
@@ -220,6 +221,7 @@ def HWTT_Analysis_2PP(X, Y):
     if ModelPower(SN_estimated, Coeff[0], Coeff[1]) > 12.5:
         SIPAdj      = np.nan
         SIPAdj_Yval = np.nan
+        TangLineAdj = TangLine
     else:
         X_Threshold = np.exp(np.log((12.5 - Phi) / alpha) / beta) + gamma
         TangLineAdj  = [alpha * beta * ((X_Threshold - gamma) ** (beta - 1)), 0]
@@ -294,7 +296,10 @@ def HWTT_Analysis_Yin(X, Y):
     # ------------------------------------------------------------------------------------------------------------------
     # Calculate the ε.
     X2 = X[X > SN]
-    if X2.max() > SN:
+    if len(X2) == 0:
+        LCST = -1
+        STcoeff = np.array([-1, -1])
+    elif X2.max() > SN:
         StripStrn = (Y - TsengLyttonModel(X, TLcoeff[0], TLcoeff[1], TLcoeff[2])) / T
         IndxST = np.where(X > SN)[0]
         X2 = X[IndxST]
@@ -310,7 +315,7 @@ def HWTT_Analysis_Yin(X, Y):
         # Evaluate the goodness of fit. 
         R2 = r2_score(Y2, StripModel(X2, STcoeff[0], STcoeff[1], SN)) * 100
         if R2 < 90:
-            raise Warning(f'Warning: Problem in fitting Stripping Model, which result in R2={R2:.2f}%, LCST={LCST:.0f}')
+            warnings.warn(f'Warning: Problem in fitting Stripping Model, which result in R2={R2:.2f}%, LCST={LCST:.0f}')
     else:
         LCST = -1
         STcoeff = np.array([-1, -1])

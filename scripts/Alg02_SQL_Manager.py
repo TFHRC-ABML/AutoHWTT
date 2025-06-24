@@ -37,29 +37,29 @@ def Create_SQLite3_HWTT_DB_Connect(path):
         Data BLOB,
         Data_shape TEXT,
         Data_dtype TEXT,
-        2PP_StrippingNumber REAL,
-        2PP_Max_Rut_mm REAL,
-        2PP_Max_Pass REAL, 
-        2PP_RuttingAt10k_mm REAL, 
-        2PP_RuttingAt20k_mm REAL, 
-        2PP_ModelCoeff_a REAL, 
-        2PP_ModelCoeff_b REAL, 
-        2PP_ModelCoeff_alpha REAL, 
-        2PP_ModelCoeff_beta REAL, 
-        2PP_ModelCoeff_gamma REAL, 
-        2PP_ModelCoeff_Phi REAL, 
-        2PP_Stripping_Rutting_mm REAL, 
-        2PP_Stripping_Rutting_Pass REAL, 
-        2PP_SIP REAL, 
-        2PP_SIP_Yvalue REAL, 
-        2PP_SIP_Adj REAL, 
-        2PP_SIP_Adj_Yvalue REAL,
-        2PP_CreepLine_Slope REAL,
-        2PP_CreepLine_Intercept REAL, 
-        2PP_StrippingLine_Slope REAL,
-        2PP_StrippingLine_Intercept REAL,
-        2PP_StrippingLine_Slope_Adj REAL,
-        2PP_StrippingLine_Intercept_Adj REAL,
+        TPP_StrippingNumber REAL,
+        TPP_Max_Rut_mm REAL,
+        TPP_Max_Pass REAL, 
+        TPP_RuttingAt10k_mm REAL, 
+        TPP_RuttingAt20k_mm REAL, 
+        TPP_ModelCoeff_a REAL, 
+        TPP_ModelCoeff_b REAL, 
+        TPP_ModelCoeff_alpha REAL, 
+        TPP_ModelCoeff_beta REAL, 
+        TPP_ModelCoeff_gamma REAL, 
+        TPP_ModelCoeff_Phi REAL, 
+        TPP_Stripping_Rutting_mm REAL, 
+        TPP_Stripping_Rutting_Pass REAL, 
+        TPP_SIP REAL, 
+        TPP_SIP_Yvalue REAL, 
+        TPP_SIP_Adj REAL, 
+        TPP_SIP_Adj_Yvalue REAL,
+        TPP_CreepLine_Slope REAL,
+        TPP_CreepLine_Intercept REAL, 
+        TPP_StrippingLine_Slope REAL,
+        TPP_StrippingLine_Intercept REAL,
+        TPP_StrippingLine_Slope_Adj REAL,
+        TPP_StrippingLine_Intercept_Adj REAL,
         Yin_Max_Rut_mm REAL,
         Yin_Max_Pass REAL, 
         Yin_RuttingAt10k_mm REAL, 
@@ -88,22 +88,22 @@ def Create_SQLite3_HWTT_DB_Connect(path):
         Yin_Parameter_LCSN REAL, 
         Yin_Parameter_LCST REAL, 
         Yin_Parameter_DeltaEpsAt10k REAL,
-        6deg_Max_Rut_mm REAL,
-        6deg_Max_Pass REAL, 
-        6deg_RuttingAt10k_mm REAL, 
-        6deg_RuttingAt20k_mm REAL, 
-        6deg_ModelCoeff_a0 REAL,
-        6deg_ModelCoeff_a1 REAL,
-        6deg_ModelCoeff_a2 REAL,
-        6deg_ModelCoeff_a3 REAL,
-        6deg_ModelCoeff_a4 REAL,
-        6deg_ModelCoeff_a5 REAL,
-        6deg_ModelCoeff_a6 REAL,
-        6deg_Stripping_Rutting_mm REAL, 
-        6deg_Stripping_Rutting_Pass REAL, 
-        6deg_StrippingNumber REAL,
-        6deg_CreepLine_Slope REAL, 
-        6deg_CreepLine_Intercept REAL, 
+        Poly6_Max_Rut_mm REAL,
+        Poly6_Max_Pass REAL, 
+        Poly6_RuttingAt10k_mm REAL, 
+        Poly6_RuttingAt20k_mm REAL, 
+        Poly6_ModelCoeff_a0 REAL,
+        Poly6_ModelCoeff_a1 REAL,
+        Poly6_ModelCoeff_a2 REAL,
+        Poly6_ModelCoeff_a3 REAL,
+        Poly6_ModelCoeff_a4 REAL,
+        Poly6_ModelCoeff_a5 REAL,
+        Poly6_ModelCoeff_a6 REAL,
+        Poly6_Stripping_Rutting_mm REAL, 
+        Poly6_Stripping_Rutting_Pass REAL, 
+        Poly6_StrippingNumber REAL,
+        Poly6_CreepLine_Slope REAL, 
+        Poly6_CreepLine_Intercept REAL, 
         Valid_Min_Pass REAL,
         Valid_Max_Pass REAL,
         Test_Name TEXT, 
@@ -136,13 +136,13 @@ def Append_to_Database(conn, cursor, data):
     cursor.execute("""
     INSERT INTO HWTT (
 	    Bnumber, Lane_Num, Lab_Aging, RepNumber, Wheel_Side, FileName, FileDirectory, Data, Data_shape, Data_dtype, 
-        2PP_StrippingNumber, 2PP_Max_Rut_mm, 2PP_Max_Pass, 2PP_RuttingAt10k_mm, 2PP_RuttingAt20k_mm, 
-        2PP_ModelCoeff_a, 2PP_ModelCoeff_b, 
-        2PP_ModelCoeff_alpha, 2PP_ModelCoeff_beta, 2PP_ModelCoeff_gamma, 2PP_ModelCoeff_Phi, 
-        2PP_Stripping_Rutting_mm, 2PP_Stripping_Rutting_Pass, 
-        2PP_SIP, 2PP_SIP_Yvalue, 2PP_SIP_Adj, 2PP_SIP_Adj_Yvalue, 
-        2PP_CreepLine_Slope, 2PP_CreepLine_Intercept, 2PP_StrippingLine_Slope, 2PP_StrippingLine_Intercept, 
-        2PP_StrippingLine_Slope_Adj, 2PP_StrippingLine_Intercept_Adj, 
+        TPP_StrippingNumber, TPP_Max_Rut_mm, TPP_Max_Pass, TPP_RuttingAt10k_mm, TPP_RuttingAt20k_mm, 
+        TPP_ModelCoeff_a, TPP_ModelCoeff_b, 
+        TPP_ModelCoeff_alpha, TPP_ModelCoeff_beta, TPP_ModelCoeff_gamma, TPP_ModelCoeff_Phi, 
+        TPP_Stripping_Rutting_mm, TPP_Stripping_Rutting_Pass, 
+        TPP_SIP, TPP_SIP_Yvalue, TPP_SIP_Adj, TPP_SIP_Adj_Yvalue, 
+        TPP_CreepLine_Slope, TPP_CreepLine_Intercept, TPP_StrippingLine_Slope, TPP_StrippingLine_Intercept, 
+        TPP_StrippingLine_Slope_Adj, TPP_StrippingLine_Intercept_Adj, 
         Yin_Max_Rut_mm, Yin_Max_Pass, Yin_RuttingAt10k_mm, Yin_RuttingAt20k_mm, 
         Yin_ModelCoeff_Step1_ro, Yin_ModelCoeff_Step1_LCult, Yin_ModelCoeff_Step1_beta, 
         Yin_ModelCoeff_Step2_RutMax, Yin_ModelCoeff_Step2_alpha, Yin_ModelCoeff_Step2_lambda, 
@@ -153,11 +153,11 @@ def Append_to_Database(conn, cursor, data):
         Yin_CreepLine_Slope, Yin_CreepLine_Intercept, Yin_StrippingLine_Slope, Yin_StrippingLine_Intercept, 
         Yin_StrippingLine_Slope_Adj, Yin_StrippingLine_Intercept_Adj, 
         Yin_Parameter_LCSN, Yin_Parameter_LCST, Yin_Parameter_DeltaEpsAt10k, 
-        6deg_Max_Rut_mm, 6deg_Max_Pass, 6deg_RuttingAt10k_mm, 6deg_RuttingAt20k_mm, 
-        6deg_ModelCoeff_a0, 6deg_ModelCoeff_a1, 6deg_ModelCoeff_a2, 6deg_ModelCoeff_a3, 
-        6deg_ModelCoeff_a4, 6deg_ModelCoeff_a5, 6deg_ModelCoeff_a6, 
-        6deg_Stripping_Rutting_mm, 6deg_Stripping_Rutting_Pass, 6deg_StrippingNumber, 
-        6deg_CreepLine_Slope, 6deg_CreepLine_Intercept, 
+        Poly6_Max_Rut_mm, Poly6_Max_Pass, Poly6_RuttingAt10k_mm, Poly6_RuttingAt20k_mm, 
+        Poly6_ModelCoeff_a0, Poly6_ModelCoeff_a1, Poly6_ModelCoeff_a2, Poly6_ModelCoeff_a3, 
+        Poly6_ModelCoeff_a4, Poly6_ModelCoeff_a5, Poly6_ModelCoeff_a6, 
+        Poly6_Stripping_Rutting_mm, Poly6_Stripping_Rutting_Pass, Poly6_StrippingNumber, 
+        Poly6_CreepLine_Slope, Poly6_CreepLine_Intercept, 
         Valid_Min_Pass, Valid_Max_Pass, Test_Name, Technician_Name, Test_Date, Test_Time, Test_Condition, 
         Target_Test_Temperature, Avg_Test_Temperature, Std_Test_Temperature, Other_Comments, IsOutlier
     ) VALUES (
@@ -168,18 +168,18 @@ def Append_to_Database(conn, cursor, data):
         int(data["Bnumber"]), int(data["Lane_Num"]), data["Lab_Aging"], int(data["RepNumber"]), data["Wheel_Side"], 
         data["FileName"], data["FileDirectory"], 
         data["Data"], data["Data_shape"], data["Data_dtype"], 
-        int(data["2PP_StrippingNumber"]), 
-        float(data["2PP_Max_Rut_mm"]), int(data["2PP_Max_Pass"]), 
-        float(data["2PP_RuttingAt10k_mm"]), float(data["2PP_RuttingAt20k_mm"]), 
-        float(data["2PP_ModelCoeff_a"]), float(data["2PP_ModelCoeff_b"]), 
-        float(data["2PP_ModelCoeff_alpha"]), float(data["2PP_ModelCoeff_beta"]), 
-        float(data["2PP_ModelCoeff_gamma"]), float(data["2PP_ModelCoeff_Phi"]), 
-        float(data["2PP_Stripping_Rutting_mm"]), int(data["2PP_Stripping_Rutting_Pass"]), 
-        float(data["2PP_SIP"]), float(data["2PP_SIP_Yvalue"]), 
-        float(data["2PP_SIP_Adj"]), float(data["2PP_SIP_Adj_Yvalue"]), 
-        float(data["2PP_CreepLine_Slope"]), float(data["2PP_CreepLine_Intercept"]), 
-        float(data["2PP_StrippingLine_Slope"]), float(data["2PP_StrippingLine_Intercept"]), 
-        float(data["2PP_StrippingLine_Slope_Adj"]), float(data["2PP_StrippingLine_Intercept_Adj"]), 
+        int(data["TPP_StrippingNumber"]), 
+        float(data["TPP_Max_Rut_mm"]), int(data["TPP_Max_Pass"]), 
+        float(data["TPP_RuttingAt10k_mm"]), float(data["TPP_RuttingAt20k_mm"]), 
+        float(data["TPP_ModelCoeff_a"]), float(data["TPP_ModelCoeff_b"]), 
+        float(data["TPP_ModelCoeff_alpha"]), float(data["TPP_ModelCoeff_beta"]), 
+        float(data["TPP_ModelCoeff_gamma"]), float(data["TPP_ModelCoeff_Phi"]), 
+        float(data["TPP_Stripping_Rutting_mm"]), int(data["TPP_Stripping_Rutting_Pass"]), 
+        float(data["TPP_SIP"]), float(data["TPP_SIP_Yvalue"]), 
+        float(data["TPP_SIP_Adj"]), float(data["TPP_SIP_Adj_Yvalue"]), 
+        float(data["TPP_CreepLine_Slope"]), float(data["TPP_CreepLine_Intercept"]), 
+        float(data["TPP_StrippingLine_Slope"]), float(data["TPP_StrippingLine_Intercept"]), 
+        float(data["TPP_StrippingLine_Slope_Adj"]), float(data["TPP_StrippingLine_Intercept_Adj"]), 
         float(data["Yin_Max_Rut_mm"]), int(data["Yin_Max_Pass"]), 
         float(data["Yin_RuttingAt10k_mm"]), float(data["Yin_RuttingAt20k_mm"]), 
         float(data["Yin_ModelCoeff_Step1_ro"]), float(data["Yin_ModelCoeff_Step1_LCult"]), 
@@ -196,15 +196,15 @@ def Append_to_Database(conn, cursor, data):
         float(data["Yin_StrippingLine_Slope_Adj"]), float(data["Yin_StrippingLine_Intercept_Adj"]), 
         float(data["Yin_Parameter_LCSN"]), float(data["Yin_Parameter_LCST"]), 
         float(data["Yin_Parameter_DeltaEpsAt10k"]), 
-        float(data["6deg_Max_Rut_mm"]), int(data["6deg_Max_Pass"]), 
-        float(data["6deg_RuttingAt10k_mm"]), float(data["6deg_RuttingAt20k_mm"]), 
-        float(data["6deg_ModelCoeff_a0"]), 
-        float(data["6deg_ModelCoeff_a1"]), float(data["6deg_ModelCoeff_a2"]), 
-        float(data["6deg_ModelCoeff_a3"]), float(data["6deg_ModelCoeff_a4"]), 
-        float(data["6deg_ModelCoeff_a5"]), float(data["6deg_ModelCoeff_a6"]), 
-        float(data["6deg_Stripping_Rutting_mm"]), float(data["6deg_Stripping_Rutting_Pass"]), 
-        float(data["6deg_StrippingNumber"]), 
-        float(data["6deg_CreepLine_Slope"]), float(data["6deg_CreepLine_Intercept"]), 
+        float(data["Poly6_Max_Rut_mm"]), int(data["Poly6_Max_Pass"]), 
+        float(data["Poly6_RuttingAt10k_mm"]), float(data["Poly6_RuttingAt20k_mm"]), 
+        float(data["Poly6_ModelCoeff_a0"]), 
+        float(data["Poly6_ModelCoeff_a1"]), float(data["Poly6_ModelCoeff_a2"]), 
+        float(data["Poly6_ModelCoeff_a3"]), float(data["Poly6_ModelCoeff_a4"]), 
+        float(data["Poly6_ModelCoeff_a5"]), float(data["Poly6_ModelCoeff_a6"]), 
+        float(data["Poly6_Stripping_Rutting_mm"]), float(data["Poly6_Stripping_Rutting_Pass"]), 
+        float(data["Poly6_StrippingNumber"]), 
+        float(data["Poly6_CreepLine_Slope"]), float(data["Poly6_CreepLine_Intercept"]), 
         float(data["Valid_Min_Pass"]), float(data["Valid_Max_Pass"]), 
         data["Test_Name"], data["Technician_Name"], data["Test_Date"], data["Test_Time"], data["Test_Condition"], 
         float(data["Target_Test_Temperature"]), float(data["Avg_Test_Temperature"]),float(data["Std_Test_Temperature"]), 
@@ -221,43 +221,62 @@ def Append_to_Database(conn, cursor, data):
 # ======================================================================================================================
 
 
-# def Get_MC_DB_SummaryData(cursor):
-#     """
-#     This function goes through the Database and tries to extract the summary information.
+def Get_DB_SummaryData(cursor):
+    """
+    This function goes through the Database and tries to extract the summary information.
 
-#     :param cursor: cursor for executing the SQL commands. 
-#     :return: a dictionary of the summary information. 
-#     """
-#     # First, get the total number of data. 
-#     cursor.execute("SELECT COUNT(*) FROM MasterCurve")
-#     NumRows = cursor.fetchone()[0]
-#     # Get the total number of data, excluding outliers. 
-#     cursor.execute("SELECT COUNT(*) FROM MasterCurve WHERE IsOutlier = ?", (0,))
-#     NumValidRows = cursor.fetchone()[0]
-#     # Get the number of unique B-numbers.
-#     cursor.execute("SELECT COUNT(DISTINCT Bnumber) FROM MasterCurve WHERE IsOutlier = ?", (0,))
-#     NumUniqueBnumber = cursor.fetchone()[0]
-#     # Get the number of unique Lab aging conditions.
-#     cursor.execute("SELECT COUNT(DISTINCT Lab_Aging) FROM MasterCurve WHERE IsOutlier = ?", (0,))
-#     NumUniqueLabAging = cursor.fetchone()[0]
-#     # Get the number of unique B-number and aging combinations. 
-#     cursor.execute("SELECT COUNT(*) FROM (SELECT DISTINCT Bnumber, Lab_Aging FROM MasterCurve)")
-#     NumUniqueBnumLabAge = cursor.fetchone()[0]
-#     # Get average number of replicates per each sample. 
-#     try:
-#         AvgNumReplicates = NumValidRows / NumUniqueBnumLabAge
-#     except:
-#         AvgNumReplicates = -1
-    
-#     # Return the extracted information. 
-#     return {
-#         'NumRows': NumRows,
-#         'NumValidRows': NumValidRows,
-#         'NumUniqueBnumber': NumUniqueBnumber,
-#         'NumUniqueLabAging': NumUniqueLabAging,
-#         'NumUniqueBnumLabAge': NumUniqueBnumLabAge,
-#         'AvgNumRep': AvgNumReplicates
-#     }
+    :param cursor: cursor for executing the SQL commands. 
+    :return: a dictionary of the summary information. 
+    """
+    # First, get the total number of data. 
+    cursor.execute("SELECT COUNT(*) FROM HWTT")
+    NumRows = cursor.fetchone()[0]
+    # Get the total number of data, excluding outliers. 
+    cursor.execute("SELECT COUNT(*) FROM HWTT WHERE IsOutlier = ?", (0,))
+    NumValidRows = cursor.fetchone()[0]
+    # Get the number of unique B-numbers.
+    cursor.execute("SELECT COUNT(DISTINCT Bnumber) FROM HWTT WHERE IsOutlier = ?", (0,))
+    NumUniqueBnumber = cursor.fetchone()[0]
+    # Get the number of unique Lab aging conditions.
+    cursor.execute("SELECT COUNT(DISTINCT Lab_Aging) FROM HWTT WHERE IsOutlier = ?", (0,))
+    NumUniqueLabAging = cursor.fetchone()[0]
+    # Get the number of unique B-number and aging combinations. 
+    cursor.execute("SELECT COUNT(*) FROM (SELECT DISTINCT Bnumber, Lab_Aging FROM HWTT)")
+    NumUniqueBnumLabAge = cursor.fetchone()[0]
+    # Get average number of replicates per each sample. 
+    try:
+        AvgNumReplicates = NumValidRows / NumUniqueBnumLabAge
+    except:
+        AvgNumReplicates = -1
+    # Return the extracted information. 
+    return {
+        'NumRows': NumRows,
+        'NumValidRows': NumValidRows,
+        'NumUniqueBnumber': NumUniqueBnumber,
+        'NumUniqueLabAging': NumUniqueLabAging,
+        'NumUniqueBnumLabAge': NumUniqueBnumLabAge,
+        'AvgNumRep': AvgNumReplicates
+    }
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def Get_Identifier_Combinations(cursor):
+    """
+    This function fetch all combinations of the B-number, Lab aging, and repetition numbers from the database. 
+
+    :param cursor: cursor for executing the SQLite3 commands. 
+    """
+    # First, query for all combinations.
+    cursor.execute("SELECT DISTINCT Bnumber, Lane_Num, Lab_Aging, RepNumber FROM HWTT")
+    Combinations = cursor.fetchall()
+    # Convert the available combinations to the dataframe. 
+    Combinations = pd.DataFrame(Combinations, columns=["Bnumber", "Lane_Num", "Lab_Aging", "RepNumber"])
+    Combinations = Combinations.sort_values(by='Bnumber', ascending=True)
+    Combinations['Bnumber'] = Combinations['Bnumber'].astype(str)
+    # Return the combinations DF as result. 
+    return Combinations
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================
