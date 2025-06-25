@@ -32,6 +32,7 @@ def Create_SQLite3_HWTT_DB_Connect(path):
         Lab_Aging TEXT,
         RepNumber INTEGER,
         Wheel_Side TEXT, 
+        Lift_Location TEXT,
         FileName TEXT,
         FileDirectory TEXT,
         Data BLOB,
@@ -135,7 +136,7 @@ def Append_to_Database(conn, cursor, data):
     # Insert data into the table
     cursor.execute("""
     INSERT INTO HWTT (
-	    Bnumber, Lane_Num, Lab_Aging, RepNumber, Wheel_Side, FileName, FileDirectory, Data, Data_shape, Data_dtype, 
+	    Bnumber, Lane_Num, Lab_Aging, RepNumber, Wheel_Side, Lift_Location, FileName, FileDirectory, Data, Data_shape, Data_dtype, 
         TPP_StrippingNumber, TPP_Max_Rut_mm, TPP_Max_Pass, TPP_RuttingAt10k_mm, TPP_RuttingAt20k_mm, 
         TPP_ModelCoeff_a, TPP_ModelCoeff_b, 
         TPP_ModelCoeff_alpha, TPP_ModelCoeff_beta, TPP_ModelCoeff_gamma, TPP_ModelCoeff_Phi, 
@@ -166,6 +167,7 @@ def Append_to_Database(conn, cursor, data):
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         int(data["Bnumber"]), int(data["Lane_Num"]), data["Lab_Aging"], int(data["RepNumber"]), data["Wheel_Side"], 
+        data["Lift_Location"],
         data["FileName"], data["FileDirectory"], 
         data["Data"], data["Data_shape"], data["Data_dtype"], 
         int(data["TPP_StrippingNumber"]), 

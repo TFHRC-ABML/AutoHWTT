@@ -42,7 +42,7 @@ class DB_ReviewPage(QMainWindow):
         self.stack = stack
         self.shared_data = shared_data
         self.stack.currentChanged.connect(self.Function_Button_Sync_Summary_Info)
-        self.ColumnNames = ['ID', 'B-number', 'Lane #', 'Lab Aging', 'Rep #', 'Wheel Side',
+        self.ColumnNames = ['ID', 'B-number', 'Lane #', 'Lift Location', 'Lab Aging', 'Rep #', 'Wheel Side',
                             'Max Rutting (mm)', 'Max Passes', 
                             'Rutting @ 10k (mm) [2PP]', 'Rutting @ 20k (mm) [2PP]', 
                             'Stripping Number [2PP]', 'SIP [2PP]', 'SIP @ 12.5 mm [2PP]', 
@@ -53,7 +53,7 @@ class DB_ReviewPage(QMainWindow):
                             'Rutting @ 10k (mm) [6deg]', 'Rutting @ 20k (mm) [6deg]', 
                             'Stripping Number [6deg]', 'Creep Slope [6deg]', 'Is Outlier?']
         self.SQL_ColumnNames = [
-            'id', 'Bnumber', 'Lane_Num', 'Lab_Aging', 'RepNumber', 'Wheel_Side',
+            'id', 'Bnumber', 'Lane_Num', 'Lift_Location', 'Lab_Aging', 'RepNumber', 'Wheel_Side',
             'TPP_Max_Rut_mm', 'TPP_Max_Pass', 
             'TPP_RuttingAt10k_mm', 'TPP_RuttingAt20k_mm', 
             'TPP_StrippingNumber', 'TPP_SIP', 'TPP_SIP_Adj', 
