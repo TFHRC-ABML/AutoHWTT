@@ -22,7 +22,10 @@ from PyQt5.QtCore import Qt, QRegExp
 from qtwidgets import AnimatedToggle
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from scripts.Alg01_UtilityFunctions import Read_HWTT_Text_File, Read_HWTT_Excel_File, Array_to_Binary, Binary_to_Array
+from openpyxl import Workbook
+from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
+from openpyxl.drawing.image import Image
+from scripts.Alg01_UtilityFunctions import Binary_to_Array, Read_Resize_Image
 from scripts.Alg02_SQL_Manager import Get_DB_SummaryData, Get_Identifier_Combinations
 from scripts.Alg03_HWTT_Analysis_Functions import HWTT_Analysis, ModelPower, TsengLyttonModel, YinModel
 
@@ -638,16 +641,268 @@ class DB_ReviewPage(QMainWindow):
             QMessageBox.critical(self, "Output File Name Failed!", 
                                  f"Output file name was NOT confirmed. Please try again.")
             return
-        # -------------------------------------------------------
-        # Retreive data for export. 
-        
-
-        # -------------------------------------------------------
-
-
-
-        # -------------------------------------------------------
-
-        
-
+        # --------------------------------------------------------------------------------------------------------------
+        # Prepare the output file. 
+        # Create a new workbook and select the active sheet
+        wb = Workbook()
+        ws = wb.active
+        # Set the title of the sheet
+        ws.title = "Sheet1"
+        # Define some styles. 
+        Info_fill       = PatternFill(start_color="FFE989", end_color="FFCC00", fill_type="solid")
+        TPP_fill        = PatternFill(start_color="A7E2FF", end_color="A7E2FF", fill_type="solid")
+        Yin_fill        = PatternFill(start_color="F4FEBA", end_color="F4FEBA", fill_type="solid")
+        Poly_fill       = PatternFill(start_color="FDBBBB", end_color="FDBBBB", fill_type="solid")
+        Data_Fill       = PatternFill(start_color="DFDED9", end_color="DFDED9", fill_type="solid")
+        Invalid_Fill    = PatternFill(start_color="FF1515", end_color="FF1515", fill_type="solid")
+        thin            = Side(border_style="thin", color="000000")
+        cell_border     = Border(top=thin, left=thin, right=thin, bottom=thin)
+        header_font     = Font(name="Arial", bold=True, size=11, color="000000")
+        cell_font       = Font(name="Arial", size=11, color="000000")
+        center_alignment= Alignment(horizontal="center", vertical="center")
+        left_alignment  = Alignment(horizontal="left", vertical="center")
+        # ----------------------------------------------------------------------------
+        # Extract the General information parameters. 
+        ColNames_Info = [
+            'Bnumber', 'Lane_Num', 'Lift_Location', 'Lab_Aging', 'RepNumber', 'Wheel_Side', 'FileName', 'FileDirectory', 
+            'Test_Name', 'Technician_Name', 'Test_Date', 'Test_Time', 'Test_Condition', 
+            'Target_Test_Temperature', 'Avg_Test_Temperature', 'Std_Test_Temperature', 
+            'Valid_Min_Pass', 'Valid_Max_Pass', 'Other_Comments', 'IsOutlier']
+        Labels_Info   = [
+            'B-number', 'Lane number', 'Lift location', 'Lab aging level', 'Repetition number', 
+            'Testing wheel side', 'Raw data file name', 'Raw data directory', 
+            'Test name (by operator)', 'Technician name', 'Testing date', 'Testing time', 'Testing condition (wet/dry)', 
+            'Target testing temperature', 'Avg. of testing temperature', 'Std. of testing temperature', 
+            'Index of first valid pass', 'Index of last valid pass', 
+            'Any other comments/notes', 'Is this test considered Outlier']
+        self.cursor.execute(f'SELECT {", ".join(ColNames_Info)} FROM HWTT WHERE id = ?', (ID,))
+        Values_Info = list(self.cursor.fetchone())
+        # Add precision to the testing temperatures. 
+        Values_Info[13] = f'{Values_Info[13]:.2f} °C'
+        Values_Info[14] = f'{Values_Info[14]:.2f} °C'
+        Values_Info[15] = f'{Values_Info[15]:.2f} °C'
+        # Make isOutlier yes/no.
+        Values_Info[19] = 'Yes' if Values_Info[19] else "No"
+        # ------------------------------------------------------
+        # Write the General information. 
+        ws.merge_cells('A1:B1')
+        cell = ws.cell(row=1, column=1, value='General Information')
+        cell.fill = Info_fill
+        cell.border = cell_border
+        cell.font = Font(name="Arial", size=13, bold=True, color="000000")
+        cell.alignment = center_alignment
+        for i, (header, value) in enumerate(zip(Labels_Info, Values_Info), start=2):
+            # Write the title.
+            cell1 = ws.cell(row=i, column=1, value=header + ':')
+            cell1.fill = Info_fill
+            cell1.border = cell_border
+            cell1.font = header_font
+            cell1.alignment = left_alignment
+            # Write the value. 
+            cell1 = ws.cell(row=i, column=2, value=value)
+            cell1.fill = Info_fill
+            cell1.border = cell_border
+            cell1.font = cell_font
+            cell1.alignment = left_alignment
+        NextRowIndex = i + 2
+        # ----------------------------------------------------------------------------------------------------------------------
+        # Go to the TPP model results. 
+        # Extract the results. 
+        ColNames_2PP = [
+            'TPP_StrippingNumber', 'TPP_Max_Rut_mm', 'TPP_Max_Pass', 
+            'TPP_RuttingAt10k_mm', 'TPP_RuttingAt20k_mm', 
+            'TPP_ModelCoeff_a', 'TPP_ModelCoeff_b', 
+            'TPP_ModelCoeff_alpha', 'TPP_ModelCoeff_beta', 'TPP_ModelCoeff_gamma', 'TPP_ModelCoeff_Phi', 
+            'TPP_Stripping_Rutting_mm', 'TPP_SIP', 'TPP_SIP_Yvalue', 'TPP_SIP_Adj', 'TPP_SIP_Adj_Yvalue', 
+            'TPP_CreepLine_Slope', 'TPP_CreepLine_Intercept', 'TPP_StrippingLine_Slope', 'TPP_StrippingLine_Intercept', 
+            'TPP_StrippingLine_Slope_Adj', 'TPP_StrippingLine_Intercept_Adj']
+        Labels_2PP = [
+            'Stripping number (SN)', 'Maximum rutting (mm)', 'Maximum passes', 
+            'Rutting @ 10k passes (mm)', 'Rutting @ 20k passes (mm)', 
+            'Model coefficient, a', 'Model coefficient, b', 
+            'Model coefficient, α', 'Model coefficient, β', 'Model coefficient, γ', 'Model coefficient, Φ', 
+            'Stripping rutting (mm)', 'SIP', 'Rutting @ SIP (mm)', 'Adjusted SIP (@ 12.5 mm rutting)', 'Rutting @ adjusted SIP', 
+            'Creep line slope', 'Creep line intercept (mm)', 'Stripping line slope', 'Stripping line intercept (mm)', 
+            'Adjusted stripping line slope', 'Adjusted stripping line intercept (mm)'
+        ]
+        self.cursor.execute(f'SELECT {", ".join(ColNames_2PP)} FROM HWTT WHERE id = ?', (ID,))
+        Values_2PP = list(self.cursor.fetchone())
+        # ------------------------------------------------------
+        # Write the General information. 
+        ws.merge_cells(f'A{NextRowIndex}:B{NextRowIndex}')
+        cell = ws.cell(row=NextRowIndex, column=1, value='Two-Part Power (2PP) Model')
+        cell.fill = TPP_fill
+        cell.border = cell_border
+        cell.font = Font(name="Arial", size=13, bold=True, color="000000")
+        cell.alignment = center_alignment
+        for i in range(1, 5):
+            for j in range(2):
+                cell1 = ws.cell(row=NextRowIndex+i, column=j+1, value='')
+                cell1.fill = TPP_fill
+        # Put the image. 
+        Image_Obj = Read_Resize_Image('./assets/Two-Part Power (2PP) Equation.png', 72)
+        ws.add_image(Image_Obj, f"A{NextRowIndex+1}")
+        NextRowIndex += 5
+        # Write the 2PP model parameters. 
+        for i, (header, value) in enumerate(zip(Labels_2PP, Values_2PP), start=NextRowIndex):
+            # Write the title.
+            cell1 = ws.cell(row=i, column=1, value=header + ':')
+            cell1.fill = TPP_fill
+            cell1.border = cell_border
+            cell1.font = header_font
+            cell1.alignment = left_alignment
+            # Write the value. 
+            cell1 = ws.cell(row=i, column=2, value=value)
+            cell1.fill = TPP_fill
+            cell1.border = cell_border
+            cell1.font = cell_font
+            cell1.alignment = left_alignment
+        NextRowIndex = i + 2
+        # ----------------------------------------------------------------------------------------------------------------------
+        # Go to the Yin et al. model results. 
+        # Extract the results. 
+        ColNames_Yin = [
+            'Yin_StrippingNumber', 'Yin_RuttingAt10k_mm', 'Yin_RuttingAt20k_mm', 
+            'Yin_Parameter_LCSN', 'Yin_Parameter_LCST', 'Yin_Parameter_DeltaEpsAt10k',
+            'Yin_ModelCoeff_Step1_ro', 'Yin_ModelCoeff_Step1_LCult', 'Yin_ModelCoeff_Step1_beta', 
+            'Yin_ModelCoeff_Step2_RutMax', 'Yin_ModelCoeff_Step2_alpha', 'Yin_ModelCoeff_Step2_lambda', 
+            'Yin_ModelCoeff_Step3_Eps0', 'Yin_ModelCoeff_Step3_theta', 
+            'Yin_Stripping_Rutting_mm', 'Yin_SIP', 'Yin_SIP_Yvalue', 'Yin_SIP_Adj', 'Yin_SIP_Adj_Yvalue', 
+            'Yin_CreepLine_Slope', 'Yin_CreepLine_Intercept', 'Yin_StrippingLine_Slope', 'Yin_StrippingLine_Intercept', 
+            'Yin_StrippingLine_Slope_Adj', 'Yin_StrippingLine_Intercept_Adj']
+        Labels_Yin = [
+            'Stripping number (SN)', 'Rutting @ 10k passes (mm)', 'Rutting @ 20k passes (mm)', 
+            'Analysis Parameter, LCSN', 'Analysis Parameter, LCST', 'Analysis Parameter, Δεp @ 10k',
+            'Model coefficient, ρ', 'Model coefficient, LCult', 'Model coefficient, β', 
+            'Model coefficient, Rut∞', 'Model coefficient, α', 'Model coefficient, λ', 
+            'Model coefficient, ε0', 'Model coefficient, θ', 
+            'Stripping rutting (mm)', 'SIP', 'Rutting @ SIP (mm)', 'Adjusted SIP (@ 12.5 mm rutting)', 'Rutting @ adjusted SIP', 
+            'Creep line slope', 'Creep line intercept (mm)', 'Stripping line slope', 'Stripping line intercept (mm)', 
+            'Adjusted stripping line slope', 'Adjusted stripping line intercept (mm)']
+        self.cursor.execute(f'SELECT {", ".join(ColNames_Yin)} FROM HWTT WHERE id = ?', (ID,))
+        Values_Yin = list(self.cursor.fetchone())
+        # ------------------------------------------------------
+        # Write the General information. 
+        ws.merge_cells(f'A{NextRowIndex}:B{NextRowIndex}')
+        cell = ws.cell(row=NextRowIndex, column=1, value='Yin et al. (2014) Model')
+        cell.fill = Yin_fill
+        cell.border = cell_border
+        cell.font = Font(name="Arial", size=13, bold=True, color="000000")
+        cell.alignment = center_alignment
+        for i in range(1, 10):
+            for j in range(2):
+                cell1 = ws.cell(row=NextRowIndex+i, column=j+1, value='')
+                cell1.fill = Yin_fill
+        # Put the image. 
+        Image_Obj = Read_Resize_Image('./assets/Yin et al Equation.png', 153)
+        ws.add_image(Image_Obj, f"A{NextRowIndex+1}")
+        NextRowIndex += 9
+        # Write the 2PP model parameters. 
+        for i, (header, value) in enumerate(zip(Labels_Yin, Values_Yin), start=NextRowIndex):
+            # Write the title.
+            cell1 = ws.cell(row=i, column=1, value=header + ':')
+            cell1.fill = Yin_fill
+            cell1.border = cell_border
+            cell1.font = header_font
+            cell1.alignment = left_alignment
+            # Write the value. 
+            cell1 = ws.cell(row=i, column=2, value=value)
+            cell1.fill = Yin_fill
+            cell1.border = cell_border
+            cell1.font = cell_font
+            cell1.alignment = left_alignment
+        NextRowIndex = i + 2
+        # ----------------------------------------------------------------------------------------------------------------------
+        # Go to the 6th degree polynomial model results. 
+        # Extract the results. 
+        ColNames_Poly = [
+            'Poly6_StrippingNumber', 'Poly6_RuttingAt10k_mm', 'Poly6_RuttingAt20k_mm', 
+            'Poly6_ModelCoeff_a0', 'Poly6_ModelCoeff_a1', 'Poly6_ModelCoeff_a2', 'Poly6_ModelCoeff_a3', 
+            'Poly6_ModelCoeff_a4', 'Poly6_ModelCoeff_a5', 'Poly6_ModelCoeff_a6', 
+            'Poly6_Stripping_Rutting_mm', 'Poly6_CreepLine_Slope', 'Poly6_CreepLine_Intercept']
+        Labels_Poly = [
+            'Stripping number (SN)', 'Rutting @ 10k passes (mm)', 'Rutting @ 20k passes (mm)', 
+            'Model coefficient, a0', 'Model coefficient, a1', 'Model coefficient, a2', 
+            'Model coefficient, a3', 'Model coefficient, a4', 'Model coefficient, a5', 'Model coefficient, a6',
+            'Stripping rutting (mm)', 'Creep line slope', 'Creep line intercept (mm)']
+        self.cursor.execute(f'SELECT {", ".join(ColNames_Poly)} FROM HWTT WHERE id = ?', (ID,))
+        Values_Poly = list(self.cursor.fetchone())
+        # ------------------------------------------------------
+        # Write the General information. 
+        ws.merge_cells(f'A{NextRowIndex}:B{NextRowIndex}')
+        cell = ws.cell(row=NextRowIndex, column=1, value='6th Degree Polynomial Model')
+        cell.fill = Poly_fill
+        cell.border = cell_border
+        cell.font = Font(name="Arial", size=13, bold=True, color="000000")
+        cell.alignment = center_alignment
+        for i in range(1, 4):
+            for j in range(2):
+                cell1 = ws.cell(row=NextRowIndex+i, column=j+1, value='')
+                cell1.fill = Poly_fill
+        # Put the image. 
+        Image_Obj = Read_Resize_Image('./assets/Polynomial Equation.png', 44)
+        ws.add_image(Image_Obj, f"A{NextRowIndex+1}")
+        NextRowIndex += 4
+        # Write the 2PP model parameters. 
+        for i, (header, value) in enumerate(zip(Labels_Poly, Values_Poly), start=NextRowIndex):
+            # Write the title.
+            cell1 = ws.cell(row=i, column=1, value=header + ':')
+            cell1.fill = Poly_fill
+            cell1.border = cell_border
+            cell1.font = header_font
+            cell1.alignment = left_alignment
+            # Write the value. 
+            cell1 = ws.cell(row=i, column=2, value=value)
+            cell1.fill = Poly_fill
+            cell1.border = cell_border
+            cell1.font = cell_font
+            cell1.alignment = left_alignment
+        NextRowIndex = i + 2
+        # ----------------------------------------------------------------------------------------------------------------------
+        # Adding the raw data to the Excel file. 
+        # Extract the data. 
+        self.cursor.execute('SELECT Data, Data_shape, Data_dtype FROM HWTT WHERE id = ?', (ID,))
+        Cont = self.cursor.fetchone()
+        Data = Binary_to_Array(Cont[0], Cont[1], Cont[2])
+        # Write the title. 
+        ws.merge_cells(f'E1:G1')
+        cell = ws.cell(row=1, column=5, value='Raw Data')
+        cell.fill = Data_Fill
+        cell.border = cell_border
+        cell.font = Font(name="Arial", size=13, bold=True, color="000000")
+        cell.alignment = center_alignment
+        # Write the headers. 
+        for j, header in enumerate(['Passes', 'Rut depth (mm)', 'Temperature (°C)'], start=5):
+            cell = ws.cell(row=2, column=j, value=header)
+            cell.fill = Data_Fill
+            cell.border = cell_border
+            cell.font = Font(name="Arial", size=12, bold=True, color="000000")
+            cell.alignment = center_alignment
+        # Write the raw data.
+        ValidIndex = [Values_Info[16], Values_Info[17]]
+        for i in range(Data.shape[1]):
+            for j in range(3):
+                cell = ws.cell(row=3 + i, column=5 + j, value=Data[j, i])
+                if Data[0, i] < ValidIndex[0] or Data[0, i] > ValidIndex[1]:
+                    cell.fill = Invalid_Fill
+                else:
+                    cell.fill = Data_Fill
+                cell.border = cell_border
+                cell.font = cell_font
+                cell.alignment = center_alignment
+                if j == 0:
+                    cell.number_format = "0"
+                else:
+                    cell.number_format = "0.00"
+        # --------------------------------------------------------------------------------------------------------------
+        # Adjust the column dimensions. 
+        ws.column_dimensions["A"].width = 40
+        ws.column_dimensions["B"].width = 30
+        ws.column_dimensions["E"].width = 11
+        ws.column_dimensions["F"].width = 20
+        ws.column_dimensions["G"].width = 20
+        # Save the Excel file. 
+        wb.save(os.path.join(Directory, FileName))
+    # ------------------------------------------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------------------------

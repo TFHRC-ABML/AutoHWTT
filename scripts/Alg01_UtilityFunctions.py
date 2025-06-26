@@ -9,6 +9,7 @@ import os
 import re
 import ast
 import numpy as np
+from openpyxl.drawing.image import Image
 from PyQt5.QtWidgets import QApplication, QPushButton, QVBoxLayout, QHBoxLayout, QDialog, QTextEdit
 
 
@@ -171,3 +172,18 @@ def Binary_to_Array(BinaryArr, StrShape, StrDtype):
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================
+
+
+def Read_Resize_Image(path, targetPixel):
+    """
+    This function reads the image (*.png, *.jpg) and resize it to properly fit in the Excel file. 
+
+    :param path: The complete/relative path to the image. 
+    :param targetPixel: The height of the image after resize in pixels, given the fixed aspect ratio. 
+    :param return: the resized image object. 
+    """
+    Image_Obj = Image(path)
+    Ratio = targetPixel / Image_Obj.height
+    Image_Obj.height = targetPixel
+    Image_Obj.width  = Image_Obj.width * Ratio
+    return Image_Obj
