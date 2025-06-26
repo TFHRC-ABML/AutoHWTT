@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QAction, QDoubleSpinBox, QLabel, \
     QPushButton, QWidget, QGridLayout, QFormLayout, QLineEdit, QFileDialog, QMessageBox, QGroupBox, QProgressBar, \
     QPlainTextEdit, QStackedWidget, QCheckBox, QComboBox, QTabWidget, QScrollArea, QTableWidget, QTableWidgetItem, \
-    QSpinBox, QFrame, QDialog, QRadioButton, QButtonGroup
+    QSpinBox, QFrame, QDialog, QRadioButton, QButtonGroup, QInputDialog
 from PyQt5.QtGui import QPixmap, QFont, QRegExpValidator, QDoubleValidator, QIntValidator, QPixmap
 from PyQt5.QtCore import Qt, QRegExp
 from qtwidgets import AnimatedToggle
@@ -42,7 +42,7 @@ class DB_ReviewPage(QMainWindow):
         self.stack = stack
         self.shared_data = shared_data
         self.stack.currentChanged.connect(self.Function_Button_Sync_Summary_Info)
-        self.ColumnNames = ['ID', 'B-number', 'Lane #', 'Lift Location', 'Lab Aging', 'Rep #', 'Wheel Side',
+        self.ColumnNames = ['B-number', 'Lane #', 'Lift Location', 'Lab Aging', 'Rep #', 'Wheel Side',
                             'Max Rutting (mm)', 'Max Passes', 
                             'Rutting @ 10k (mm) [2PP]', 'Rutting @ 20k (mm) [2PP]', 
                             'Stripping Number [2PP]', 'SIP [2PP]', 'SIP @ 12.5 mm [2PP]', 
@@ -51,9 +51,9 @@ class DB_ReviewPage(QMainWindow):
                             'Stripping Number [Yin]', 'SIP [Yin]', 'SIP @ 12.5 mm [Yin]', 
                             'Creep Slope [Yin]', 'Stripping Slope [Yin]', 
                             'Rutting @ 10k (mm) [6deg]', 'Rutting @ 20k (mm) [6deg]', 
-                            'Stripping Number [6deg]', 'Creep Slope [6deg]', 'Is Outlier?']
+                            'Stripping Number [6deg]', 'Creep Slope [6deg]', 'Is Outlier?', 'ID']
         self.SQL_ColumnNames = [
-            'id', 'Bnumber', 'Lane_Num', 'Lift_Location', 'Lab_Aging', 'RepNumber', 'Wheel_Side',
+            'Bnumber', 'Lane_Num', 'Lift_Location', 'Lab_Aging', 'RepNumber', 'Wheel_Side',
             'TPP_Max_Rut_mm', 'TPP_Max_Pass', 
             'TPP_RuttingAt10k_mm', 'TPP_RuttingAt20k_mm', 
             'TPP_StrippingNumber', 'TPP_SIP', 'TPP_SIP_Adj', 
@@ -62,7 +62,7 @@ class DB_ReviewPage(QMainWindow):
             'Yin_StrippingNumber', 'Yin_SIP', 'Yin_SIP_Adj', 
             'Yin_CreepLine_Slope', 'Yin_StrippingLine_Slope', 
             'Poly6_RuttingAt10k_mm', 'Poly6_RuttingAt20k_mm', 
-            'Poly6_StrippingNumber', 'Poly6_CreepLine_Slope', 'IsOutlier']
+            'Poly6_StrippingNumber', 'Poly6_CreepLine_Slope', 'IsOutlier', 'id']
         # self.ColumnNamesAnalysis = [
         #     'B_Number', 'Lab_Aging_Condition', 'Num_Data', 
         #     'ICO_Baseline_mean', 'ICO_Baseline_std', 'ICO_Baseline_COV', 
@@ -98,6 +98,8 @@ class DB_ReviewPage(QMainWindow):
         SectT01_Layout = QVBoxLayout()
         self.SectT01_Label_NumRecords = QLabel('Number of records shown in table: 0')
         self.SectT01_Label_NumRecords.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        self.SectT01_Label_CurrentSelection = QLabel("Current selection: N/A")
+        self.SectT01_Label_CurrentSelection.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         # Define the table. 
         self.Table = QTableWidget()
         self.Table.setRowCount(10)
@@ -105,8 +107,10 @@ class DB_ReviewPage(QMainWindow):
         self.Table.setHorizontalHeaderLabels(self.ColumnNames)
         self.Table.setSelectionBehavior(self.Table.SelectRows)
         self.Table.setSelectionMode(self.Table.SingleSelection)
+        self.Table.selectionModel().selectionChanged.connect(self.Function_Update_CurrentSelection)
         # Place them inside the section. 
         SectT01_Layout.addWidget(self.SectT01_Label_NumRecords)
+        SectT01_Layout.addWidget(self.SectT01_Label_CurrentSelection)
         SectT01_Layout.addWidget(self.Table)
         SectT01.setLayout(SectT01_Layout)
         layout.addWidget(SectT01, 75)
@@ -203,10 +207,46 @@ class DB_ReviewPage(QMainWindow):
         Right_Layout.addWidget(SectT03, 25)
         # --------------------------------------------------------------------------------------------------------------
         # --------------------------------------------------------------------------------------------------------------
-        # Section 03 (Right Layout, Middle section): Search and Filter the DB. 
+        # Section 04 (Right Layout, Lower section): Action buttons for Delete and Modify the record. 
         SectT04 = QGroupBox("Action Buttons")
         SectT04.setStyleSheet("QGroupBox { font-weight: bold; }")
         SectT04_Layout = QVBoxLayout()
+        # Button for Deleting a record.
+        self.Button_Delete = QPushButton("Delete Record")
+        self.Button_Delete.setFont(QFont("Arial", 11, QFont.Bold))
+        self.Button_Delete.clicked.connect(self.Function_Delete_Record)
+        self.Button_Delete.setFixedSize(150, 30)
+        self.Button_Delete.setEnabled(True)
+        self.Button_Delete.setStyleSheet(
+        """
+        QPushButton:enabled {background-color: #FA8072; color: black;}
+        QPushButton:hover {background-color: lightgray;}
+        QPushButton:pressed {background-color: gray;}
+        QPushButton:checked {background-color: lime;}
+        """)
+        # Button for Modify a record.
+        self.Button_Modify = QPushButton("Modify Record")
+        self.Button_Modify.setFont(QFont("Arial", 11, QFont.Bold))
+        self.Button_Modify.clicked.connect(self.Function_Modify_Record)
+        self.Button_Modify.setFixedSize(150, 30)
+        self.Button_Modify.setEnabled(True)
+        self.Button_Modify.setStyleSheet(
+        """
+        QPushButton:enabled {background-color: #1E90FF; color: black;}
+        QPushButton:hover {background-color: lightgray;}
+        QPushButton:pressed {background-color: gray;}
+        QPushButton:checked {background-color: lime;}
+        """)
+        SectT04_Layout.addWidget(self.Button_Delete, alignment=Qt.AlignHCenter | Qt.AlignTop)
+        SectT04_Layout.addWidget(self.Button_Modify, alignment=Qt.AlignHCenter | Qt.AlignTop)
+        SectT04.setLayout(SectT04_Layout)
+        Right_Layout.addWidget(SectT04, 15)
+        # --------------------------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
+        # Section 05 (Right Layout, Lower section): Buttons to move to the other pages.
+        SectT05 = QGroupBox("Navigator to Other Pages")
+        SectT05.setStyleSheet("QGroupBox { font-weight: bold; }")
+        SectT05_Layout = QVBoxLayout()
         # Button for Return to the main page.
         self.Button_Main = QPushButton("Main Page")
         self.Button_Main.setFont(QFont("Arial", 11, QFont.Bold))
@@ -233,10 +273,31 @@ class DB_ReviewPage(QMainWindow):
         QPushButton:pressed {background-color: gray;}
         QPushButton:checked {background-color: lime;}
         """)
-        SectT04_Layout.addWidget(self.Button_Main)
-        SectT04_Layout.addWidget(self.Button_Analysis)
-        SectT04.setLayout(SectT04_Layout)
-        Right_Layout.addWidget(SectT04, 50)
+        SectT05_Layout.addWidget(self.Button_Main, alignment=Qt.AlignHCenter | Qt.AlignTop)
+        SectT05_Layout.addWidget(self.Button_Analysis, alignment=Qt.AlignHCenter | Qt.AlignTop)
+        SectT05.setLayout(SectT05_Layout)
+        Right_Layout.addWidget(SectT05, 15)
+        # --------------------------------------------------------------------------------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
+        # Section 06 (Right Layout, Lower section): Export section.
+        SectT06 = QGroupBox("Export Section")
+        SectT06.setStyleSheet("QGroupBox { font-weight: bold; }")
+        SectT06_Layout = QVBoxLayout()
+        # Button for export the individual record.
+        self.Button_ExportOne = QPushButton("Export (Individual Record)")
+        self.Button_ExportOne.setFont(QFont("Arial", 11, QFont.Bold))
+        self.Button_ExportOne.clicked.connect(self.Function_Button_Export_Individual)
+        self.Button_ExportOne.setFixedSize(180, 35)
+        self.Button_ExportOne.setEnabled(True)
+        self.Button_ExportOne.setStyleSheet(
+        """
+        QPushButton:hover {background-color: lightgray;}
+        QPushButton:pressed {background-color: gray;}
+        QPushButton:checked {background-color: lime;}
+        """)
+        SectT06_Layout.addWidget(self.Button_ExportOne, alignment=Qt.AlignHCenter | Qt.AlignTop)
+        SectT06.setLayout(SectT06_Layout)
+        Right_Layout.addWidget(SectT06, 20)
         layout.addLayout(Right_Layout, 25)
     # ==================================================================================================================
     # =========================== Define the Functions =================================================================
@@ -269,8 +330,6 @@ class DB_ReviewPage(QMainWindow):
         self.DropDown_LabAging.addItems(['All Aging Levels'])
         self.DropDown_LabAging.setCurrentIndex(0)
         self.DropDown_LabAging.setEnabled(False)
-        # Return Nothing.
-        return
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Button_Fetch(self):
         """
@@ -279,6 +338,7 @@ class DB_ReviewPage(QMainWindow):
         # First clear the table and row selector. 
         self.Function_Clear_Tables()
         self.Table.clearSelection()
+        self.SectT01_Label_CurrentSelection.setText("Current selection: N/A")
         # Read the filters. 
         Bnumber    = self.DropDown_Bnumber.currentText()
         LaneNumber = self.DropDown_LaneNumber.currentText()
@@ -459,9 +519,135 @@ class DB_ReviewPage(QMainWindow):
         """
         self.stack.setCurrentIndex(0)  # Switch to the first page, Main page.
     # ------------------------------------------------------------------------------------------------------------------
-
+    def Function_Update_CurrentSelection(self, selected, deselected):
+        """
+        This function will update the current selection label. 
+        """
+        try:
+            # Get the index of the selected row. 
+            for index in selected.indexes():
+                idx = index.row()
+                break
+            # Update the label. 
+            if self.Table.item(idx, 1).text() == '':
+                self.SectT01_Label_CurrentSelection.setText("Current selection: N/A") 
+            else:
+                self.SectT01_Label_CurrentSelection.setText(
+                    f"Current selection: B-number={self.Table.item(idx, 0).text()} " +
+                    f"for Lane {self.Table.item(idx, 1).text()} ({self.Table.item(idx, 2).text()} lift), " + 
+                    f'at age level of "{self.Table.item(idx, 3).text()}", Rep {self.Table.item(idx, 4).text()}')
+        except:
+            pass
     # ------------------------------------------------------------------------------------------------------------------
-
+    def Function_Delete_Record(self):
+        """
+        This function deletes the current selection from the database. 
+        """
+        # Find the selected index. 
+        SelectedIndices = self.Table.selectionModel().selectedIndexes()
+        if len(SelectedIndices) == 0:           
+            # Nothing is selected. 
+            QMessageBox.critical(self, "Data Selection Error!", 
+                                        f"Row was not selected. Please first select the row you want to delete " + 
+                                        f"from the database.")
+            return
+        idx = SelectedIndices[0].row()
+        # Check the id value. 
+        ID = self.Table.item(idx, self.Table.columnCount() - 1)
+        if ID == None:
+            # Table is empty. 
+            QMessageBox.critical(self, "Data Selection Error!", 
+                                        f"Selected row ({idx + 1}) is empty. Please first fetch the data using the " +
+                                        f'"Search and Filter" section, then select the intended row, and then click ' +
+                                        f'"Delete Record" button.')
+            return
+        else:
+            ID = int(ID.text())
+            Msg  = f'Do you want to Permanently Delete the following record?:\n' + \
+                   f'B-number={self.Table.item(idx, 0).text()} ' + \
+                   f"for Lane {self.Table.item(idx, 1).text()} ({self.Table.item(idx, 2).text()} lift), " + \
+                   f'at age level of "{self.Table.item(idx, 3).text()}", Rep {self.Table.item(idx, 4).text()}'
+            Question = QMessageBox()
+            Question.setIcon(QMessageBox.Question)
+            Question.setWindowTitle("Delete Record Confirmation")
+            Question.setText(Msg)
+            Question.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            Question.setDefaultButton(QMessageBox.No)
+            Reply = Question.exec_()
+            # Check the response. 
+            if Reply == QMessageBox.Yes:
+                # User Choose Yes.
+                # deleting the record from the Database.
+                self.cursor.execute("DELETE FROM HWTT WHERE id = ?", (ID,))
+                self.conn.commit()
+                # Updating the table. 
+                self.Function_Button_Fetch()
+            else:
+                # User clicked No, and ignore the deletion. 
+                print("Ignore")
+                return
     # ------------------------------------------------------------------------------------------------------------------
+    def Function_Modify_Record(self):
+        pass
+    # ------------------------------------------------------------------------------------------------------------------
+    def Function_Button_Export_Individual(self):
+        """
+        This function performs the exporting the results into a Excel spreadsheet.  
+        """
+        # Find the selected index. 
+        SelectedIndices = self.Table.selectionModel().selectedIndexes()
+        if len(SelectedIndices) == 0:           
+            # Nothing is selected. 
+            QMessageBox.critical(self, "Data Selection Error!", 
+                                        f"Row was not selected. Please first select the row you want to export " + 
+                                        f"from the database.")
+            return
+        idx = SelectedIndices[0].row()
+        # Check the id value. 
+        ID = self.Table.item(idx, self.Table.columnCount() - 1)
+        if ID == None or ID.text() == '':
+            # Table is empty. 
+            QMessageBox.critical(self, "Data Selection Error!", 
+                                        f"Selected row ({idx + 1}) is empty. Please first fetch the data using the " +
+                                        f'"Search and Filter" section, then select the intended row, and then click ' +
+                                        f'"Export (Individual Record)" button.')
+            return
+        # Otherwise, everything is ready for exporting. 
+        ID = int(ID.text())             # The ID to retrieve the data from the DB. 
+        # -------------------------------------------------------
+        # Part 1: Ask for a place to save the file and file name. 
+        Directory = QFileDialog.getExistingDirectory(self, "Please select Saving Directory", "")
+        # If a file is selected by the user, update the Input_SavePath.
+        if not Directory:
+            QMessageBox.critical(self, "Directory Selection Failed!", f"Directory was NOT selected. Please try again.")
+            return
+        print(f'Saving Directory: {Directory}')
+        # # Freeze the main window. 
+        # self.setEnabled(False)
+        # Ask for the file name. 
+        self.cursor.execute("SELECT FileName FROM HWTT WHERE id = ?", (ID,))
+
+        FileName, IsOkButtonPressed = QInputDialog.getText(self,
+                                                           "Output File Name", 
+                                                           "Please enter the output file name (without .xlsx):",
+                                                           text=os.path.splitext(self.cursor.fetchone()[0])[0])
+        if IsOkButtonPressed:
+            FileName = FileName + '.xlsx'
+            print(f"Saving File Name: {FileName}")
+        else:
+            QMessageBox.critical(self, "Output File Name Failed!", 
+                                 f"Output file name was NOT confirmed. Please try again.")
+            return
+        # -------------------------------------------------------
+        # Retreive data for export. 
+        
+
+        # -------------------------------------------------------
+
+
+
+        # -------------------------------------------------------
+
+        
 
     # ------------------------------------------------------------------------------------------------------------------
