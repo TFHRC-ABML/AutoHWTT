@@ -25,6 +25,7 @@ from matplotlib.figure import Figure
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
 from openpyxl.drawing.image import Image
+from openpyxl.utils import get_column_letter
 from scripts.Alg01_UtilityFunctions import Binary_to_Array, Read_Resize_Image
 from scripts.Alg02_SQL_Manager import Get_DB_SummaryData, Get_Identifier_Combinations
 from scripts.Alg03_HWTT_Analysis_Functions import HWTT_Analysis, ModelPower, TsengLyttonModel, YinModel
@@ -290,7 +291,7 @@ class DB_ReviewPage(QMainWindow):
         self.Button_ExportOne = QPushButton("Export (Individual Record)")
         self.Button_ExportOne.setFont(QFont("Arial", 11, QFont.Bold))
         self.Button_ExportOne.clicked.connect(self.Function_Button_Export_Individual)
-        self.Button_ExportOne.setFixedSize(180, 35)
+        self.Button_ExportOne.setFixedSize(220, 35)
         self.Button_ExportOne.setEnabled(True)
         self.Button_ExportOne.setStyleSheet(
         """
@@ -298,7 +299,20 @@ class DB_ReviewPage(QMainWindow):
         QPushButton:pressed {background-color: gray;}
         QPushButton:checked {background-color: lime;}
         """)
+        # Button for export the individual record.
+        self.Button_ExportDB = QPushButton("Export (Database)")
+        self.Button_ExportDB.setFont(QFont("Arial", 11, QFont.Bold))
+        self.Button_ExportDB.clicked.connect(self.Function_Button_Export_Database)
+        self.Button_ExportDB.setFixedSize(220, 35)
+        self.Button_ExportDB.setEnabled(True)
+        self.Button_ExportDB.setStyleSheet(
+        """
+        QPushButton:hover {background-color: lightgray;}
+        QPushButton:pressed {background-color: gray;}
+        QPushButton:checked {background-color: lime;}
+        """)
         SectT06_Layout.addWidget(self.Button_ExportOne, alignment=Qt.AlignHCenter | Qt.AlignTop)
+        SectT06_Layout.addWidget(self.Button_ExportDB,  alignment=Qt.AlignHCenter | Qt.AlignTop)
         SectT06.setLayout(SectT06_Layout)
         Right_Layout.addWidget(SectT06, 20)
         layout.addLayout(Right_Layout, 25)
@@ -904,5 +918,162 @@ class DB_ReviewPage(QMainWindow):
         # Save the Excel file. 
         wb.save(os.path.join(Directory, FileName))
     # ------------------------------------------------------------------------------------------------------------------
+    def Function_Button_Export_Database(self):
+        """
+        This function creates a new Excel file, acts as a copy of all database. 
+        """
+        # Ask user for saving directory. 
+        Directory = QFileDialog.getExistingDirectory(self, "Please select Saving Directory", "")
+        # If a file is selected by the user, update the Input_SavePath.
+        if not Directory:
+            QMessageBox.critical(self, "Directory Selection Failed!", f"Directory was NOT selected. Please try again.")
+            return
+        print(f'Saving Directory: {Directory}')
+        # # Freeze the main window. 
+        # self.setEnabled(False)
+        # Ask for the file name. 
+        FileName, IsOkButtonPressed = QInputDialog.getText(self,
+                                                           "Output File Name", 
+                                                           "Please enter the output file name (without .xlsx):",
+                                                           text=self.DB_Name)
+        if IsOkButtonPressed:
+            FileName = FileName + '.xlsx'
+            print(f"Saving File Name: {FileName}")
+        else:
+            QMessageBox.critical(self, "Output File Name Failed!", 
+                                 f"Output file name was NOT confirmed. Please try again.")
+            return
+        # --------------------------------------------------------------------------------------------------------------
+        # Create a new workbook and select the active sheet
+        wb = Workbook()
+        ws = wb.active
+        # Set the title of the sheet
+        ws.title = "Sheet1"
+        # Define some styles. 
+        Data_Fill       = PatternFill(start_color="A4FED3", end_color="A4FED3", fill_type="solid")
+        Invalid_Fill    = PatternFill(start_color="FF1515", end_color="FF1515", fill_type="solid")
+        thin            = Side(border_style="thin", color="000000")
+        thick           = Side(border_style="thick", color="000000")
+        cell_border     = Border(top=thin, left=thin, right=thin, bottom=thin)
+        header_border   = Border(top=thick, left=thick, right=thick, bottom=thick)
+        header_font     = Font(name="Arial", bold=True, size=11, color="000000")
+        cell_font       = Font(name="Arial", size=11, color="000000")
+        center_alignment= Alignment(horizontal="center", vertical="center")
+        left_alignment  = Alignment(horizontal="left", vertical="center")
+        # ----------------------------------------------
+        # Write the general information. 
+        ColNumbers = [1, 21, 43, 68]
+        Titles     = ['General Information', 'Two-Part Power (2PP) model', 
+                      'Yin et al. model', '6th Degree Polynomial model']
+        for i, Range in enumerate(['A1:T1', 'U1:AP1', 'AQ1:BO1', 'BP1:CB1']):
+            ws.merge_cells(Range)
+            cell = ws.cell(row=1, column=ColNumbers[i], value=Titles[i])
+            # cell.fill = Data_Fill
+            cell.border = header_border
+            cell.font = Font(name="Arial", size=16, bold=True, color="000000")
+            cell.alignment = center_alignment
+        RowIndex = 2
+        # ----------------------------------------------
+        # Extract the data. 
+        ColNames = [
+            'Bnumber', 'Lane_Num', 'Lift_Location', 'Lab_Aging', 'RepNumber', 'Wheel_Side', 'FileName', 'FileDirectory', 
+            'Test_Name', 'Technician_Name', 'Test_Date', 'Test_Time', 'Test_Condition', 
+            'Target_Test_Temperature', 'Avg_Test_Temperature', 'Std_Test_Temperature', 
+            'Valid_Min_Pass', 'Valid_Max_Pass', 'Other_Comments', 'IsOutlier', 
+            'TPP_StrippingNumber', 'TPP_Max_Rut_mm', 'TPP_Max_Pass', 
+            'TPP_RuttingAt10k_mm', 'TPP_RuttingAt20k_mm', 
+            'TPP_ModelCoeff_a', 'TPP_ModelCoeff_b', 
+            'TPP_ModelCoeff_alpha', 'TPP_ModelCoeff_beta', 'TPP_ModelCoeff_gamma', 'TPP_ModelCoeff_Phi', 
+            'TPP_Stripping_Rutting_mm', 'TPP_SIP', 'TPP_SIP_Yvalue', 'TPP_SIP_Adj', 'TPP_SIP_Adj_Yvalue', 
+            'TPP_CreepLine_Slope', 'TPP_CreepLine_Intercept', 'TPP_StrippingLine_Slope', 'TPP_StrippingLine_Intercept', 
+            'TPP_StrippingLine_Slope_Adj', 'TPP_StrippingLine_Intercept_Adj', 
+            'Yin_StrippingNumber', 'Yin_RuttingAt10k_mm', 'Yin_RuttingAt20k_mm', 
+            'Yin_Parameter_LCSN', 'Yin_Parameter_LCST', 'Yin_Parameter_DeltaEpsAt10k',
+            'Yin_ModelCoeff_Step1_ro', 'Yin_ModelCoeff_Step1_LCult', 'Yin_ModelCoeff_Step1_beta', 
+            'Yin_ModelCoeff_Step2_RutMax', 'Yin_ModelCoeff_Step2_alpha', 'Yin_ModelCoeff_Step2_lambda', 
+            'Yin_ModelCoeff_Step3_Eps0', 'Yin_ModelCoeff_Step3_theta', 
+            'Yin_Stripping_Rutting_mm', 'Yin_SIP', 'Yin_SIP_Yvalue', 'Yin_SIP_Adj', 'Yin_SIP_Adj_Yvalue', 
+            'Yin_CreepLine_Slope', 'Yin_CreepLine_Intercept', 'Yin_StrippingLine_Slope', 'Yin_StrippingLine_Intercept', 
+            'Yin_StrippingLine_Slope_Adj', 'Yin_StrippingLine_Intercept_Adj',
+            'Poly6_StrippingNumber', 'Poly6_RuttingAt10k_mm', 'Poly6_RuttingAt20k_mm', 
+            'Poly6_ModelCoeff_a0', 'Poly6_ModelCoeff_a1', 'Poly6_ModelCoeff_a2', 'Poly6_ModelCoeff_a3', 
+            'Poly6_ModelCoeff_a4', 'Poly6_ModelCoeff_a5', 'Poly6_ModelCoeff_a6', 
+            'Poly6_Stripping_Rutting_mm', 'Poly6_CreepLine_Slope', 'Poly6_CreepLine_Intercept']
+        Labels   = [
+            'B-number', 'Lane number', 'Lift location', 'Lab aging level', 'Repetition number', 
+            'Testing wheel side', 'Raw data file name', 'Raw data directory', 
+            'Test name (by operator)', 'Technician name', 'Testing date', 'Testing time', 'Testing condition (wet/dry)', 
+            'Target testing temperature', 'Avg. of testing temperature', 'Std. of testing temperature', 
+            'Index of first valid pass', 'Index of last valid pass', 
+            'Any other comments/notes', 'Is this test considered Outlier', 
+            'Stripping number (SN)', 'Maximum rutting (mm)', 'Maximum passes', 
+            'Rutting @ 10k passes (mm)', 'Rutting @ 20k passes (mm)', 
+            'Model coefficient, a', 'Model coefficient, b', 
+            'Model coefficient, α', 'Model coefficient, β', 'Model coefficient, γ', 'Model coefficient, Φ', 
+            'Stripping rutting (mm)', 'SIP', 'Rutting @ SIP (mm)', 'Adjusted SIP (@ 12.5 mm rutting)', 'Rutting @ adjusted SIP', 
+            'Creep line slope', 'Creep line intercept (mm)', 'Stripping line slope', 'Stripping line intercept (mm)', 
+            'Adjusted stripping line slope', 'Adjusted stripping line intercept (mm)', 
+            'Stripping number (SN)', 'Rutting @ 10k passes (mm)', 'Rutting @ 20k passes (mm)', 
+            'Analysis Parameter, LCSN', 'Analysis Parameter, LCST', 'Analysis Parameter, Δεp @ 10k',
+            'Model coefficient, ρ', 'Model coefficient, LCult', 'Model coefficient, β', 
+            'Model coefficient, Rut∞', 'Model coefficient, α', 'Model coefficient, λ', 
+            'Model coefficient, ε0', 'Model coefficient, θ', 
+            'Stripping rutting (mm)', 'SIP', 'Rutting @ SIP (mm)', 'Adjusted SIP (@ 12.5 mm rutting)', 'Rutting @ adjusted SIP', 
+            'Creep line slope', 'Creep line intercept (mm)', 'Stripping line slope', 'Stripping line intercept (mm)', 
+            'Adjusted stripping line slope', 'Adjusted stripping line intercept (mm)', 
+            'Stripping number (SN)', 'Rutting @ 10k passes (mm)', 'Rutting @ 20k passes (mm)', 
+            'Model coefficient, a0', 'Model coefficient, a1', 'Model coefficient, a2', 
+            'Model coefficient, a3', 'Model coefficient, a4', 'Model coefficient, a5', 'Model coefficient, a6',
+            'Stripping rutting (mm)', 'Creep line slope', 'Creep line intercept (mm)']
+        NumFormat = [
+            '0', '0', None, None, '0', None, None, None, None, None, None, None, None, '0.00', '0.00', '0.00', 
+            '0', '0', None, '0', 
+            '0', '0.00', '0', '0.00', '0.00', '0.0000', '0.0000', '0.0000E+00', '0.0000', '0.0', '0.0000', 
+            '0.00', '0.0', '0.00', '0.0', '0.00', '0.00E+00', '0.00', '0.00E+00', '0.00', '0.00E+00', '0.00', 
+            '0', '0.00', '0.00', '0.0', '0.0', '0.0000E+00', '0.0000', '0.0000', '0.0000', '0.0000', '0.0000', '0.0000', 
+            '0.0000E+00', '0.0000E+00', '0.00', '0.0', '0.00', '0.0', '0.00', 
+            '0.00E+00', '0.00', '0.00E+00', '0.00', '0.00E+00', '0.00', '0', '0.00', '0.00', 
+            '0.0000E+00', '0.0000E+00', '0.0000E+00', '0.0000E+00', '0.0000E+00', '0.0000E+00', '0.0000E+00',
+            '0.00', '0.00E+00', '0.00']
+        self.cursor.execute(f'SELECT {", ".join(ColNames)} FROM HWTT')
+        Values = self.cursor.fetchall()
+        # ----------------------------------------------
+        # Write the headers. 
+        for i, header in enumerate(Labels, start=1):
+            cell = ws.cell(row=RowIndex, column=i, value=header)
+            # cell.fill = Data_Fill
+            cell.border = header_border
+            cell.font = header_font
+            cell.alignment = center_alignment
+        RowIndex += 1
+        # Write the data. 
+        for j in range(len(Values)):
+            IsOutlier = Values[j][19]
+            for i, res in enumerate(Values[j], start=1):
+                cell = ws.cell(row=RowIndex+j, column=i, value=res)
+                if IsOutlier:
+                    cell.fill = Invalid_Fill
+                else:
+                    cell.fill = Data_Fill
+                cell.border = cell_border
+                cell.font = cell_font
+                cell.alignment = center_alignment
+                if NumFormat[i - 1] != None:
+                    cell.number_format = NumFormat[i - 1]
+        # Set the column widths.
+        Letters = [get_column_letter(i + 1) for i in range(len(ColNames))]
+        Widths  = [
+            11.00, 14.43, 12.86, 25.29, 20.14, 20.43, 29.71, 28.14, 35.57, 18.43, 
+            13.86, 13.71, 28.57, 28.86, 29.14, 28.71, 24.86, 24.43, 28.29, 31.71, 
+            24.00, 23.57, 18.43, 28.86, 28.86, 21.43, 21.43, 21.43, 21.14, 21.86, 
+            23.43, 23.00, 10.00, 20.86, 34.71, 24.86, 18.00, 27.29, 21.00, 30.43, 
+            30.57, 39.86, 24.00, 28.86, 28.86, 27.71, 27.57, 32.57, 21.43, 25.71, 
+            21.43, 25.29, 21.43, 21.14, 22.29, 21.14, 23.43,  8.43, 20.86, 34.71, 
+            24.86, 18.00, 27.29, 21.00, 30.43, 30.57, 39.86, 24.00, 28.86, 28.86, 
+            22.43, 23.00, 23.00, 23.00, 23.00, 23.00, 23.00, 23.00, 23.43, 27.29]
+        for i in range(len(ColNames)):
+            ws.column_dimensions[Letters[i]].width = Widths[i]    
+        # Save the Excel file. 
+        wb.save(os.path.join(Directory, FileName))
     # ------------------------------------------------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------------------------
