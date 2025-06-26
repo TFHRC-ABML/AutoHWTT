@@ -311,8 +311,13 @@ class DB_ReviewPage(QMainWindow):
         QPushButton:pressed {background-color: gray;}
         QPushButton:checked {background-color: lime;}
         """)
+        self.Export_ProgressBar = QProgressBar()
+        self.Export_ProgressBar.setMinimum(0)
+        self.Export_ProgressBar.setMaximum(0)
+        self.Export_ProgressBar.hide()
         SectT06_Layout.addWidget(self.Button_ExportOne, alignment=Qt.AlignHCenter | Qt.AlignTop)
         SectT06_Layout.addWidget(self.Button_ExportDB,  alignment=Qt.AlignHCenter | Qt.AlignTop)
+        SectT06_Layout.addWidget(self.Export_ProgressBar)
         SectT06.setLayout(SectT06_Layout)
         Right_Layout.addWidget(SectT06, 20)
         layout.addLayout(Right_Layout, 25)
@@ -611,6 +616,7 @@ class DB_ReviewPage(QMainWindow):
         """
         This function performs the exporting the results into a Excel spreadsheet.  
         """
+        self.Export_ProgressBar.show()
         # Find the selected index. 
         SelectedIndices = self.Table.selectionModel().selectedIndexes()
         if len(SelectedIndices) == 0:           
@@ -618,6 +624,7 @@ class DB_ReviewPage(QMainWindow):
             QMessageBox.critical(self, "Data Selection Error!", 
                                         f"Row was not selected. Please first select the row you want to export " + 
                                         f"from the database.")
+            self.Export_ProgressBar.hide()
             return
         idx = SelectedIndices[0].row()
         # Check the id value. 
@@ -628,6 +635,7 @@ class DB_ReviewPage(QMainWindow):
                                         f"Selected row ({idx + 1}) is empty. Please first fetch the data using the " +
                                         f'"Search and Filter" section, then select the intended row, and then click ' +
                                         f'"Export (Individual Record)" button.')
+            self.Export_ProgressBar.hide()
             return
         # Otherwise, everything is ready for exporting. 
         ID = int(ID.text())             # The ID to retrieve the data from the DB. 
@@ -637,6 +645,7 @@ class DB_ReviewPage(QMainWindow):
         # If a file is selected by the user, update the Input_SavePath.
         if not Directory:
             QMessageBox.critical(self, "Directory Selection Failed!", f"Directory was NOT selected. Please try again.")
+            self.Export_ProgressBar.hide()
             return
         print(f'Saving Directory: {Directory}')
         # # Freeze the main window. 
@@ -654,6 +663,7 @@ class DB_ReviewPage(QMainWindow):
         else:
             QMessageBox.critical(self, "Output File Name Failed!", 
                                  f"Output file name was NOT confirmed. Please try again.")
+            self.Export_ProgressBar.hide()
             return
         # --------------------------------------------------------------------------------------------------------------
         # Prepare the output file. 
@@ -917,6 +927,7 @@ class DB_ReviewPage(QMainWindow):
         ws.column_dimensions["G"].width = 20
         # Save the Excel file. 
         wb.save(os.path.join(Directory, FileName))
+        self.Export_ProgressBar.hide()
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Button_Export_Database(self):
         """
