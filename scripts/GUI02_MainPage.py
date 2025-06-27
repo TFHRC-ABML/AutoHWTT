@@ -22,7 +22,8 @@ from PyQt5.QtCore import Qt, QRegExp
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PIL import Image
-from scripts.Alg01_UtilityFunctions import Read_HWTT_Text_File, Read_HWTT_Excel_File, Array_to_Binary
+from scripts.Alg01_UtilityFunctions import Read_HWTT_Text_File, Read_HWTT_Excel_File, Array_to_Binary, \
+    ScrollableMessageBox
 from scripts.Alg02_SQL_Manager import Append_to_Database
 from scripts.Alg03_HWTT_Analysis_Functions import HWTT_Analysis, ModelPower, TsengLyttonModel, YinModel
 from scripts.GUI03_ReviewPage import DB_ReviewPage
@@ -738,6 +739,7 @@ class MainPage(QMainWindow):
         # self.Menu_Fit_Outlier.triggered.connect(self.Function_Button_SpecifyOutlier)
         self.Menu_Help_Help        = QAction('Help')
         self.Menu_Help_License     = QAction('License')
+        self.Menu_Help_License.triggered.connect(self.Function_Menu_License)
         # Add actions to the "File" menu
         FileMenu.addAction(self.Menu_File_ImportFiles)
         FileMenu.addAction(self.Menu_File_ImportCopy)
@@ -1900,7 +1902,7 @@ class MainPage(QMainWindow):
         # Open the image with Pillow
         img = Image.open(ImageStream)
         try:
-            import win32clipboard
+            import win32clipboard # type: ignore
             def send_to_clipboard(image_pil):
                 output = io.BytesIO()
                 image_pil.convert("RGB").save(output, "BMP")
@@ -1959,6 +1961,17 @@ class MainPage(QMainWindow):
         except Exception as err:
             QMessageBox.critical(self, "Save as Failed!", 
                                  f"Error occurred during save as process.\nError: {err}") 
+    # ------------------------------------------------------------------------------------------------------------------
+    def Function_Menu_License(self):
+        """
+        This function simply shows the license agreement of GNU General Public License v3.0.
+        """
+        with open('./LICENSE', 'r') as file:
+            TEXT = file.read()
+        msg_box = ScrollableMessageBox(TEXT, "License - GNU General Public License v3.0")
+        if not msg_box.exec_() == QDialog.Accepted:
+            # Closing the whole program. 
+            sys.exit()
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================

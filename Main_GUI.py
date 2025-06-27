@@ -100,7 +100,7 @@ Office of Infrastructure Research and Development
 McLean, VA 22101
 aaron.leavitt@dot.gov
         """
-    msg_box = ScrollableMessageBox(TEXT)
+    msg_box = ScrollableMessageBox(TEXT, "AutoHWTT - Agreement")
     if not msg_box.exec_() == QDialog.Accepted:
         # Closing the whole program. 
         sys.exit()

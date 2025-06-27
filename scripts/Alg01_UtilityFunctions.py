@@ -23,9 +23,9 @@ class ScrollableMessageBox(QDialog):
 
     :param QDialog: _description_
     """
-    def __init__(self, text, parent=None):
+    def __init__(self, text, Title, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("HWTT Analysis Tool - Agreement")
+        self.setWindowTitle(Title)
         self.resize(700, 500)
         layout = QVBoxLayout(self)
         # Create a scrollable text area
