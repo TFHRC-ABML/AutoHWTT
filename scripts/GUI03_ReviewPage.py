@@ -6,29 +6,17 @@
 
 # Importing the required libraries.
 import os
-import sys
-import shutil
-import sqlite3
-import fnmatch
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QAction, QDoubleSpinBox, QLabel, \
     QPushButton, QWidget, QGridLayout, QFormLayout, QLineEdit, QFileDialog, QMessageBox, QGroupBox, QProgressBar, \
     QPlainTextEdit, QStackedWidget, QCheckBox, QComboBox, QTabWidget, QScrollArea, QTableWidget, QTableWidgetItem, \
     QSpinBox, QFrame, QDialog, QRadioButton, QButtonGroup, QInputDialog
-from PyQt5.QtGui import QPixmap, QFont, QRegExpValidator, QDoubleValidator, QIntValidator, QPixmap
-from PyQt5.QtCore import Qt, QRegExp
-from qtwidgets import AnimatedToggle
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
+from PyQt5.QtGui import QFont
+from PyQt5.QtCore import Qt
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
-from openpyxl.drawing.image import Image
 from openpyxl.utils import get_column_letter
 from scripts.Alg01_UtilityFunctions import Binary_to_Array, Read_Resize_Image
 from scripts.Alg02_SQL_Manager import Get_DB_SummaryData, Get_Identifier_Combinations
-from scripts.Alg03_HWTT_Analysis_Functions import HWTT_Analysis, ModelPower, TsengLyttonModel, YinModel
 
 
 class DB_ReviewPage(QMainWindow):
@@ -269,7 +257,7 @@ class DB_ReviewPage(QMainWindow):
         self.Button_Analysis.setFont(QFont("Arial", 11, QFont.Bold))
         self.Button_Analysis.clicked.connect(self.Function_Button_MainPage)
         self.Button_Analysis.setFixedSize(160, 35)
-        self.Button_Analysis.setEnabled(True)
+        self.Button_Analysis.setEnabled(False)
         self.Button_Analysis.setStyleSheet(
         """
         QPushButton:enabled {background-color: #FFE4B5; color: black;}
@@ -389,7 +377,7 @@ class DB_ReviewPage(QMainWindow):
                                (LaneNo,))
                 elif self.DropDown_LabAging.currentIndex() > 0:         # Considering a specific lab aging level. 
                     self.cursor.execute(
-                        f"SELECT {', '.join(self.SQL_ColumnNames)} FROM HWTT WHERE Lab_Aging = ?, Lane_Num = ?", 
+                        f"SELECT {', '.join(self.SQL_ColumnNames)} FROM HWTT WHERE Lab_Aging = ? AND Lane_Num = ?", 
                         (LabAging, LaneNo))
                 else:
                     raise ValueError(f'Unexpected error occured! ' + 
@@ -405,7 +393,7 @@ class DB_ReviewPage(QMainWindow):
                 self.cursor.execute(f"SELECT {', '.join(self.SQL_ColumnNames)} FROM HWTT WHERE Bnumber = ?", (Bnumber,))
             elif self.DropDown_LabAging.currentIndex() > 0:     # For a specific lab aging level. 
                 self.cursor.execute(
-                    f"SELECT {', '.join(self.SQL_ColumnNames)} FROM HWTT WHERE Bnumber = ?, Lab_Aging = ?", 
+                    f"SELECT {', '.join(self.SQL_ColumnNames)} FROM HWTT WHERE Bnumber = ? AND Lab_Aging = ?", 
                     (Bnumber, LabAging))
             else:
                 raise ValueError(f'Unexpected error occured! ' + 
@@ -610,7 +598,14 @@ class DB_ReviewPage(QMainWindow):
                 return
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Modify_Record(self):
-        pass
+        QMessageBox.critical(
+            self, "Function Unavailable!", 
+            f'Corresponding function for "Modify" button is currently under developement and will be available in ' + 
+            f'the next version, soon. Unfortunately, you cannot use this button at the moment. In case you need ' + 
+            f'to modify your valid boundary selections, please use the "Delete Record" button to permanently delete ' + 
+            f'the intended test result, and add it again to the Database. If you do not access the raw HWTT results, ' +
+            f'you can first export that individual record, and regenerate the input using the templates provided by ' +
+            f'clicking on "Template" button. Apologize for the inconvenience.')
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Button_Export_Individual(self):
         """

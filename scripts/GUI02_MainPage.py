@@ -11,7 +11,6 @@ import shutil
 import sqlite3
 import fnmatch
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QAction, QDoubleSpinBox, QLabel, \
     QPushButton, QWidget, QGridLayout, QFormLayout, QLineEdit, QFileDialog, QMessageBox, QGroupBox, QProgressBar, \
@@ -19,17 +18,12 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout,
     QSpinBox, QFrame, QDialog, QRadioButton, QButtonGroup
 from PyQt5.QtGui import QPixmap, QFont, QRegExpValidator, QDoubleValidator, QIntValidator, QPixmap
 from PyQt5.QtCore import Qt, QRegExp
-from qtwidgets import AnimatedToggle
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from scripts.Alg01_UtilityFunctions import Read_HWTT_Text_File, Read_HWTT_Excel_File, Array_to_Binary, Binary_to_Array
+from scripts.Alg01_UtilityFunctions import Read_HWTT_Text_File, Read_HWTT_Excel_File, Array_to_Binary
 from scripts.Alg02_SQL_Manager import Append_to_Database
 from scripts.Alg03_HWTT_Analysis_Functions import HWTT_Analysis, ModelPower, TsengLyttonModel, YinModel
 from scripts.GUI03_ReviewPage import DB_ReviewPage
-# from Alg02_SQL_Manager import Get_MC_DB_SummaryData
-# from Alg03_FreeShifting import FreeShift_GordonShaw1994
-# from Alg04_MasterCurve_Construction import Fit_ShiftModel_WLF, ShiftModel_WLF, Fit_MC_ChristensenAnderson, \
-#     Fit_MC_ChristensenAndersonMarasteanu
 
 
 class SharedData:
