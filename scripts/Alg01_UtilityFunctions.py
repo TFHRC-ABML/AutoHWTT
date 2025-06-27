@@ -143,12 +143,14 @@ def Read_HWTT_Excel_File(FilePath):
     try:
         # Reading the data (First two columns). 
         data = pd.read_excel(FilePath, sheet_name='Sheet1', usecols='A:C', names=['Pass', 'Rut', 'Temp'], skiprows=0)
-        Pass = data['Pass'].to_numpy().astype(int)
-        Rut  = data['Rut'].to_numpy().astype(float)
+        Pass = data['Pass'].to_numpy()
+        Rut  = data['Rut'].to_numpy()
         Temp = data['Temp'].to_numpy()
         Index= np.where((~ np.isnan(Pass)) & (~ np.isnan(Rut)))[0]
-        Pass = Pass[Index]
-        Rut  = Rut[Index]
+        if len(Index) == 0:
+            raise Exception(f'Input Excel file is empty!!!!')
+        Pass = Pass[Index].astype(int)
+        Rut  = Rut[Index].astype(float)
         Temp = Temp[Index]
         # Reading the properties. 
         data = pd.read_excel(FilePath, sheet_name='Sheet1', usecols='E:F', skiprows=1)

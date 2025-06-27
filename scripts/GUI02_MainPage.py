@@ -6,6 +6,7 @@
 
 # Importing the required libraries.
 import os
+import io
 import sys
 import shutil
 import sqlite3
@@ -20,6 +21,7 @@ from PyQt5.QtGui import QPixmap, QFont, QRegExpValidator, QDoubleValidator, QInt
 from PyQt5.QtCore import Qt, QRegExp
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+from PIL import Image
 from scripts.Alg01_UtilityFunctions import Read_HWTT_Text_File, Read_HWTT_Excel_File, Array_to_Binary
 from scripts.Alg02_SQL_Manager import Append_to_Database
 from scripts.Alg03_HWTT_Analysis_Functions import HWTT_Analysis, ModelPower, TsengLyttonModel, YinModel
@@ -726,6 +728,12 @@ class MainPage(QMainWindow):
         self.Menu_Edit_ResetReplot = QAction("Reset/rePlot Raw data")
         self.Menu_Edit_ResetReplot.triggered.connect(self.Function_Button_ResetRePlot)
         self.Menu_Edit_ResetReplot.setEnabled(False)
+        self.Menu_Edit_CopyFigure = QAction("Copy Figure (current view)")
+        self.Menu_Edit_CopyFigure.triggered.connect(self.Function_Menu_CopyFigure)
+        self.Menu_Edit_CopyFigure.setEnabled(True)
+        self.Menu_Edit_SaveFigure = QAction("Save Figure (current view)")
+        self.Menu_Edit_SaveFigure.triggered.connect(self.Function_Menu_SaveFigure)
+        self.Menu_Edit_SaveFigure.setEnabled(True)
         # self.Menu_Fit_Outlier      = QAction("Specify Outlier", checkable=True)
         # self.Menu_Fit_Outlier.triggered.connect(self.Function_Button_SpecifyOutlier)
         self.Menu_Help_Help        = QAction('Help')
@@ -740,6 +748,8 @@ class MainPage(QMainWindow):
         FileMenu.addAction(self.Menu_File_ExitAction)
         EditMenu.addAction(self.Menu_Edit_ResetReplot)
         EditMenu.addSeparator()
+        EditMenu.addAction(self.Menu_Edit_CopyFigure)
+        EditMenu.addAction(self.Menu_Edit_SaveFigure)
         HelpMenu.addAction(self.Menu_Help_Help)
         HelpMenu.addAction(self.Menu_Help_License)
     # ------------------------------------------------------------------------------------------------------------------
@@ -849,78 +859,6 @@ class MainPage(QMainWindow):
         # -----------------------------------------------------
         # Call the function to plot and handle the input files. 
         self.Function_Renew_MainPlot_For_Next_File()
-        """
-        # # Otherwise, Update the progress label.
-        # self.Label_InputFileUpdate.setText(f'Processing files: {1}/{len(FileList)}')
-        # self.ProgressBar.setEnabled(True)
-        # self.ProgressBar.setValue(1 / len(FileList))
-        # # disable the DB manager buttons. 
-        # self.Button_AddFiles.setEnabled(False)
-        # self.Button_AddCopied.setEnabled(False)
-        # self.Button_Template.setEnabled(False)
-        # self.Button_Review.setEnabled(False)
-        # self.Menu_File_ImportFiles.setEnabled(False)
-        # self.Menu_File_ImportCopy.setEnabled(False)
-        # self.Menu_File_Template.setEnabled(False)
-        # self.Button_FailResult.setEnabled(True)
-        # # Check if the selected file is already in the database. 
-        # self.cursor.execute("SELECT COUNT(*) FROM HWTT WHERE FileName = ?", (os.path.basename(FileList[0]),))
-        # count = self.cursor.fetchone()[0]
-        # if count > 0:
-        #     raise Exception("The file is already existed! Maybe printing a message!")
-        # # Read the file. 
-        # Passes, RutDepth, Temperature, Props = Read_HWTT_Excel_File(FileList[0])
-        # if type(RutDepth) != np.ndarray:
-        #     # Reading Excel file was failed. 
-        #     QMessageBox.critical(self, "Excel Reading Failed!", 
-        #                          f"AutoHWTT cannot read the selected Excel file. Error was\n{Passes}")
-        # # Otherwise, the Excel file was successfully read. 
-
-
-
-
-        # # This function adds the Master curve data which are copied into the RAM. 
-        # # Print the message to user (for now). 
-        # MsgBox_AddCopied = QMessageBox()
-        # MsgBox_AddCopied.setIcon(QMessageBox.Information)
-        # MsgBox_AddCopied.setWindowTitle("Specify Outlier")
-        # MsgBox_AddCopied.setText(f"This function is under preparation. Will be added later.\n" + \
-        #                          f"For now, please use the 'Add Data from File' option")
-        # MsgBox_AddCopied.setStandardButtons(QMessageBox.Ok)
-        # MsgBox_AddCopied.exec_()
-
-
-
-        # #         # This function will first ask user to select the input Excel result files, and then it will run them one by one. 
-        # # FileList, _ = QFileDialog.getOpenFileNames(self, caption='Please select new binder MC result files:', 
-        # #                                            directory='', 
-        # #                                            filter="Excel Files (*.xlsx);;CSV Files (*.csv);;All Files (*)")
-        # # self.CurrentFileList = FileList
-        # # self.CurrentFileIndex= 0
-        # # # Check if file is not selected. 
-        # # if len(FileList) == 0:          # Do nothing in case files are NOT selected. 
-        # #     return
-        # # # Otherwise, Update the progress label.
-        # # self.Label_InputFileUpdate.setText(f'Processing files: {1}/{len(FileList)} (0.00%)')
-        # # # disable the DB manager buttons. 
-        # # self.Button_AddFiles.setEnabled(False)
-        # # self.Button_AddCopied.setEnabled(False)
-        # # self.Button_Template.setEnabled(False)
-        # # self.Menu_File_ImportFiles.setEnabled(False)
-        # # self.Menu_File_ImportCopy.setEnabled(False)
-        # # self.Menu_File_Template.setEnabled(False)
-        # # # Evaluate the input file to extract the isotherms.
-        # # self.CurIsotherms = EvaluateInputFile(FileList[0])
-        # # if self.CurIsotherms is None:
-        # #     raise Exception(f'Code incomplete!!! Write it so that it skip this file and move to the next!!!')
-        # # # Plot the isotherms.
-        # # self.Plot_ComplexModulus()
-        # # # Enable specify outlier and finalize buttons. 
-        # # self.Button_SpecifyOutlier.setEnabled(True)
-        # # self.Button_Finalize.setEnabled(True)
-        # # self.Menu_Fit_Outlier.setEnabled(True)
-        # # self.Menu_Fit_Finalize.setEnabled(True)
-        """
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Button_ResetRePlot(self):
         """
@@ -1810,7 +1748,6 @@ class MainPage(QMainWindow):
                 continue
             # Check the file compatibility.
             try:
-                print(self.CurrentFileList[i])
                 if fnmatch.fnmatch(os.path.basename(self.CurrentFileList[i]), '*.txt'):
                     Passes, RutDepth, Temperature, Props = Read_HWTT_Text_File(self.CurrentFileList[i])
                     FileCompatibleFlag = True
@@ -1950,6 +1887,78 @@ class MainPage(QMainWindow):
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Button_Review(self):
         self.stack.setCurrentIndex(1)  # Switch to the second page
+    # ------------------------------------------------------------------------------------------------------------------
+    def Function_Menu_CopyFigure(self):
+        """
+        This function saves the current content of the figure to the clipboard, where the user can then paste it 
+        whereever he/she wants. NOTE: Only works in Windows!
+        """
+        # Save the plot to an in-memory BytesIO object first
+        ImageStream = io.BytesIO()
+        self.fig.savefig(ImageStream, format='png', bbox_inches='tight', dpi=600)
+        ImageStream.seek(0)         # Rewind the stream
+        # Open the image with Pillow
+        img = Image.open(ImageStream)
+        try:
+            import win32clipboard
+            def send_to_clipboard(image_pil):
+                output = io.BytesIO()
+                image_pil.convert("RGB").save(output, "BMP")
+                data = output.getvalue()[14:]  # Remove BMP header
+                output.close()
+                win32clipboard.OpenClipboard()
+                win32clipboard.EmptyClipboard()
+                win32clipboard.SetClipboardData(win32clipboard.CF_DIB, data)
+                win32clipboard.CloseClipboard()
+            # Call the function for your image
+            send_to_clipboard(img)
+            QMessageBox.information(self, "Copy to Clipboard", 
+                                    f"The figure (current view) is successfully coppied into clipboard. " + 
+                                    f"Feel free to paste it where you need.")  
+        except ImportError:
+            print("win32clipboard not found. This method is for Windows only.")
+            QMessageBox.critical(self, "Copying Figure Failed!", 
+                                 f"The figure cannot be coppied into the clipboard. Note that this function " + 
+                                 f"only works in Windows!")            
+    # ------------------------------------------------------------------------------------------------------------------
+    def Function_Menu_SaveFigure(self):
+        """
+        This function saves the current view of the figure as a file, supporting PNG, JPG, and PDF formats. 
+        """
+        # First, get the output file directory and name, as well as the output format. 
+        FileTypes = "PNG Files (*.png);;PDF Files (*.pdf);;JPEG Files (*.jpg)"
+        FilePath, SelectedFilter = QFileDialog.getSaveFileName(
+            None,
+            "Save Figure As",
+            "",  # Default directory and filename (empty to start in system default directory)
+            FileTypes)
+        # Check if directory is provided!
+        if not FilePath:
+            QMessageBox.critical(self, "Save as Failed!", 
+                                 f"The directory and file name was not selected! Please try again.") 
+        # Check if the directory is valid. 
+        if not os.path.isdir(os.path.dirname(FilePath)):
+            QMessageBox.critical(self, "Save as Failed!", 
+                                 f"Selected directory is NOT existed or permission denied.\nSelected directory: " + 
+                                 f'"{os.path.dirname(FilePath)}"') 
+        try:
+            if 'png' in SelectedFilter.lower():
+                self.fig.savefig(FilePath, format='png', dpi=1200)
+                FileTypeName = 'PNG'
+            elif 'pdf' in SelectedFilter.lower():
+                self.fig.savefig(FilePath, format='pdf')
+                FileTypeName = 'PDF'
+            elif 'jpg' in SelectedFilter.lower():
+                self.fig.savefig(FilePath, format='jpg')
+                FileTypeName = 'JPG'
+            else:
+                raise Exception('File type not recognized!!!!')
+            QMessageBox.information(self, "Save as Completed!", 
+                                 f"The current view of the figure was successfully saved as {FileTypeName} file!\n" + 
+                                 f'File name: "{os.path.basename(FilePath)}"\ndirectory:{os.path.dirname(FilePath)}') 
+        except Exception as err:
+            QMessageBox.critical(self, "Save as Failed!", 
+                                 f"Error occurred during save as process.\nError: {err}") 
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================
