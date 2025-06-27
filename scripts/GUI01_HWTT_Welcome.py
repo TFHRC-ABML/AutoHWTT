@@ -29,7 +29,7 @@ class HWTT_WelcomePage(QMainWindow):
     # ------------------------------------------------------------------------------------------------------------------
     def initUI(self):
         # Initiate the user interface. 
-        self.setWindowTitle("HWTT Analysis Tool (version 1.0)")
+        self.setWindowTitle("AutoHWTT (version 1.0)")
         self.setFixedSize(710, 500)
         # Main widget and layout
         main_widget = QWidget()
@@ -51,7 +51,7 @@ class HWTT_WelcomePage(QMainWindow):
         layout.addWidget(Label_LogoText)
         # --------------------------------------------------------------------------------------------------------------
         # Title
-        Label_Title = QLabel(f"HWTT Analysis Tool")
+        Label_Title = QLabel(f"AutoHWTT")
         Label_Title.setAlignment(Qt.AlignCenter)
         Label_Title.setFont(QFont("Arial", 20, QFont.Bold))
         Label_Title.setStyleSheet("color: #000000;")
