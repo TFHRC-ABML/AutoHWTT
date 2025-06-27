@@ -829,71 +829,98 @@ class MainPage(QMainWindow):
             self.Label_InputFileUpdate.setText('Waiting for input files...')
             self.ProgressBar.setEnabled(False)
             return
-        # Otherwise, Update the progress label.
-        self.Label_InputFileUpdate.setText(f'Processing files: {1}/{len(FileList)}')
-        self.ProgressBar.setEnabled(True)
-        self.ProgressBar.setValue(1 / len(FileList))
-        # disable the DB manager buttons. 
+        # --------------------------------------------------------------------------------------------------------------
+        # Update the GUI. 
         self.Button_AddFiles.setEnabled(False)
         self.Button_AddCopied.setEnabled(False)
         self.Button_Template.setEnabled(False)
         self.Button_Review.setEnabled(False)
+        self.Button_ResetRePlot.setEnabled(True)
+        self.Button_FailResult.setEnabled(True)
+        self.SpinBox_MinPassNumber.setEnabled(True)
+        self.SpinBox_MaxPassNumber.setEnabled(True)
+        self.CheckBox_OffsetFirstRawData.setEnabled(True)
+        self.Button_RunAnalysis.setEnabled(True)
+        self.SectT03_TabWidget.setEnabled(True)
         self.Menu_File_ImportFiles.setEnabled(False)
         self.Menu_File_ImportCopy.setEnabled(False)
         self.Menu_File_Template.setEnabled(False)
-        self.Button_FailResult.setEnabled(True)
-        # Check if the selected file is already in the database. 
-        self.cursor.execute("SELECT COUNT(*) FROM HWTT WHERE FileName = ?", (os.path.basename(FileList[0]),))
-        count = self.cursor.fetchone()[0]
-        if count > 0:
-            raise Exception("The file is already existed! Maybe printing a message!")
-        # Read the file. 
-        Passes, RutDepth, Temperature, Props = Read_HWTT_Excel_File(FileList[0])
-
-
-
-
-        # This function adds the Master curve data which are copied into the RAM. 
-        # Print the message to user (for now). 
-        MsgBox_AddCopied = QMessageBox()
-        MsgBox_AddCopied.setIcon(QMessageBox.Information)
-        MsgBox_AddCopied.setWindowTitle("Specify Outlier")
-        MsgBox_AddCopied.setText(f"This function is under preparation. Will be added later.\n" + \
-                                 f"For now, please use the 'Add Data from File' option")
-        MsgBox_AddCopied.setStandardButtons(QMessageBox.Ok)
-        MsgBox_AddCopied.exec_()
-
-
-
-        #         # This function will first ask user to select the input Excel result files, and then it will run them one by one. 
-        # FileList, _ = QFileDialog.getOpenFileNames(self, caption='Please select new binder MC result files:', 
-        #                                            directory='', 
-        #                                            filter="Excel Files (*.xlsx);;CSV Files (*.csv);;All Files (*)")
-        # self.CurrentFileList = FileList
-        # self.CurrentFileIndex= 0
-        # # Check if file is not selected. 
-        # if len(FileList) == 0:          # Do nothing in case files are NOT selected. 
-        #     return
+        self.Menu_Edit_ResetReplot.setEnabled(True)
+        # -----------------------------------------------------
+        # Call the function to plot and handle the input files. 
+        self.Function_Renew_MainPlot_For_Next_File()
+        """
         # # Otherwise, Update the progress label.
-        # self.Label_InputFileUpdate.setText(f'Processing files: {1}/{len(FileList)} (0.00%)')
+        # self.Label_InputFileUpdate.setText(f'Processing files: {1}/{len(FileList)}')
+        # self.ProgressBar.setEnabled(True)
+        # self.ProgressBar.setValue(1 / len(FileList))
         # # disable the DB manager buttons. 
         # self.Button_AddFiles.setEnabled(False)
         # self.Button_AddCopied.setEnabled(False)
         # self.Button_Template.setEnabled(False)
+        # self.Button_Review.setEnabled(False)
         # self.Menu_File_ImportFiles.setEnabled(False)
         # self.Menu_File_ImportCopy.setEnabled(False)
         # self.Menu_File_Template.setEnabled(False)
-        # # Evaluate the input file to extract the isotherms.
-        # self.CurIsotherms = EvaluateInputFile(FileList[0])
-        # if self.CurIsotherms is None:
-        #     raise Exception(f'Code incomplete!!! Write it so that it skip this file and move to the next!!!')
-        # # Plot the isotherms.
-        # self.Plot_ComplexModulus()
-        # # Enable specify outlier and finalize buttons. 
-        # self.Button_SpecifyOutlier.setEnabled(True)
-        # self.Button_Finalize.setEnabled(True)
-        # self.Menu_Fit_Outlier.setEnabled(True)
-        # self.Menu_Fit_Finalize.setEnabled(True)
+        # self.Button_FailResult.setEnabled(True)
+        # # Check if the selected file is already in the database. 
+        # self.cursor.execute("SELECT COUNT(*) FROM HWTT WHERE FileName = ?", (os.path.basename(FileList[0]),))
+        # count = self.cursor.fetchone()[0]
+        # if count > 0:
+        #     raise Exception("The file is already existed! Maybe printing a message!")
+        # # Read the file. 
+        # Passes, RutDepth, Temperature, Props = Read_HWTT_Excel_File(FileList[0])
+        # if type(RutDepth) != np.ndarray:
+        #     # Reading Excel file was failed. 
+        #     QMessageBox.critical(self, "Excel Reading Failed!", 
+        #                          f"AutoHWTT cannot read the selected Excel file. Error was\n{Passes}")
+        # # Otherwise, the Excel file was successfully read. 
+
+
+
+
+        # # This function adds the Master curve data which are copied into the RAM. 
+        # # Print the message to user (for now). 
+        # MsgBox_AddCopied = QMessageBox()
+        # MsgBox_AddCopied.setIcon(QMessageBox.Information)
+        # MsgBox_AddCopied.setWindowTitle("Specify Outlier")
+        # MsgBox_AddCopied.setText(f"This function is under preparation. Will be added later.\n" + \
+        #                          f"For now, please use the 'Add Data from File' option")
+        # MsgBox_AddCopied.setStandardButtons(QMessageBox.Ok)
+        # MsgBox_AddCopied.exec_()
+
+
+
+        # #         # This function will first ask user to select the input Excel result files, and then it will run them one by one. 
+        # # FileList, _ = QFileDialog.getOpenFileNames(self, caption='Please select new binder MC result files:', 
+        # #                                            directory='', 
+        # #                                            filter="Excel Files (*.xlsx);;CSV Files (*.csv);;All Files (*)")
+        # # self.CurrentFileList = FileList
+        # # self.CurrentFileIndex= 0
+        # # # Check if file is not selected. 
+        # # if len(FileList) == 0:          # Do nothing in case files are NOT selected. 
+        # #     return
+        # # # Otherwise, Update the progress label.
+        # # self.Label_InputFileUpdate.setText(f'Processing files: {1}/{len(FileList)} (0.00%)')
+        # # # disable the DB manager buttons. 
+        # # self.Button_AddFiles.setEnabled(False)
+        # # self.Button_AddCopied.setEnabled(False)
+        # # self.Button_Template.setEnabled(False)
+        # # self.Menu_File_ImportFiles.setEnabled(False)
+        # # self.Menu_File_ImportCopy.setEnabled(False)
+        # # self.Menu_File_Template.setEnabled(False)
+        # # # Evaluate the input file to extract the isotherms.
+        # # self.CurIsotherms = EvaluateInputFile(FileList[0])
+        # # if self.CurIsotherms is None:
+        # #     raise Exception(f'Code incomplete!!! Write it so that it skip this file and move to the next!!!')
+        # # # Plot the isotherms.
+        # # self.Plot_ComplexModulus()
+        # # # Enable specify outlier and finalize buttons. 
+        # # self.Button_SpecifyOutlier.setEnabled(True)
+        # # self.Button_Finalize.setEnabled(True)
+        # # self.Menu_Fit_Outlier.setEnabled(True)
+        # # self.Menu_Fit_Finalize.setEnabled(True)
+        """
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Button_ResetRePlot(self):
         """
@@ -1783,12 +1810,19 @@ class MainPage(QMainWindow):
                 continue
             # Check the file compatibility.
             try:
-                if fnmatch.fnmatch(os.path.basename(self.CurrentFileList[i][-4:]), '*.txt'):
+                print(self.CurrentFileList[i])
+                if fnmatch.fnmatch(os.path.basename(self.CurrentFileList[i]), '*.txt'):
                     Passes, RutDepth, Temperature, Props = Read_HWTT_Text_File(self.CurrentFileList[i])
                     FileCompatibleFlag = True
                     break
-                elif fnmatch.fnmatch(os.path.basename(self.CurrentFileList[i][-4:]), '*.xlsx'):
+                elif fnmatch.fnmatch(os.path.basename(self.CurrentFileList[i]), '*.xlsx'):
                     Passes, RutDepth, Temperature, Props = Read_HWTT_Excel_File(self.CurrentFileList[i])
+                    if type(RutDepth) != np.ndarray:
+                        # Reading Excel file was failed. 
+                        ErrorMsg = Passes        # Error is saved in the first return. 
+                        QMessageBox.critical(self, "Excel Reading Failed!", 
+                                            f"AutoHWTT cannot read the selected Excel file. Error was\n{ErrorMsg}")
+                        raise Exception(ErrorMsg)
                     FileCompatibleFlag = True
                     break
                 else:

@@ -8,7 +8,9 @@
 import os
 import re
 import ast
+import datetime
 import numpy as np
+import pandas as pd
 from openpyxl.drawing.image import Image
 from PyQt5.QtWidgets import QApplication, QPushButton, QVBoxLayout, QHBoxLayout, QDialog, QTextEdit
 
@@ -138,7 +140,49 @@ def Read_HWTT_Excel_File(FilePath):
 
     :param FilePath: The full path to the given text file. 
     """
-    return None, None, None, None
+    try:
+        # Reading the data (First two columns). 
+        data = pd.read_excel(FilePath, sheet_name='Sheet1', usecols='A:C', names=['Pass', 'Rut', 'Temp'], skiprows=0)
+        Pass = data['Pass'].to_numpy().astype(int)
+        Rut  = data['Rut'].to_numpy().astype(float)
+        Temp = data['Temp'].to_numpy()
+        Index= np.where((~ np.isnan(Pass)) & (~ np.isnan(Rut)))[0]
+        Pass = Pass[Index]
+        Rut  = Rut[Index]
+        Temp = Temp[Index]
+        # Reading the properties. 
+        data = pd.read_excel(FilePath, sheet_name='Sheet1', usecols='E:F', skiprows=1)
+        Props = {
+            'Test_Condition'    : data.loc[0, 'Value'], 
+            'Test_Temperature'  : float(data.loc[1, 'Value']), 
+            'Wheel_Side'        : data.loc[2, 'Value'], 
+            'Test_Date'         : '01/01/1990', 
+            'Test_Time'         : '00:00', 
+            'Test_Name'         : data.loc[3, 'Value']}
+        Time = data.loc[6, 'Value']
+        if type(Time) == datetime.time:
+            Props['Test_Time'] = Time.strftime("%H:%M")
+        elif not (np.isnan(Time) or Time == ''):
+            Props['Test_Time'] = f"{Time.split(':')[0]:02d}:{Time.split(':')[1]:02d}"
+        Date = data.loc[7, 'Value']
+        if type(Date) == datetime.date:
+            Props['Test_Date'] = Date.strftime("%m/%d/%Y")
+        elif type(Date) == datetime.datetime:
+            Props['Test_Date'] = Date.strftime("%m/%d/%Y")
+        elif not (np.isnan(Date) or Date == ''):
+            Month = int(Date.split('-')[0])
+            Day   = int(Date.split('-')[1])
+            Year  = int(Date.split(' ')[0].split('-')[-1])
+            Props['Test_Date'] = f'{Month:02d}/{Day:02d}/{Year:04d}'
+        # Modify the temperatures. 
+        if np.all(np.isnan(Temp)):
+            Temp = np.ones(Temp.shape) * Props['Test_Temperature']
+        else:
+            Temp = Temp.astype(float)
+        # Return the results. 
+        return Pass, Rut, Temp, Props
+    except Exception as err:
+        return err, None, None, None
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================
