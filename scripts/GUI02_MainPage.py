@@ -23,7 +23,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PIL import Image
 from scripts.Alg01_UtilityFunctions import Read_HWTT_Text_File, Read_HWTT_Excel_File, Array_to_Binary, \
-    ScrollableMessageBox
+    ScrollableMessageBox, ResourcePath
 from scripts.Alg02_SQL_Manager import Append_to_Database
 from scripts.Alg03_HWTT_Analysis_Functions import HWTT_Analysis, ModelPower, TsengLyttonModel, YinModel
 from scripts.GUI03_ReviewPage import DB_ReviewPage
@@ -378,7 +378,7 @@ class MainPage(QMainWindow):
         ST03T1_Label08 = QLabel(f'{"Std. recorded test temperature (°C):".ljust(LengthText)}')
         ST03T1_Label09 = QLabel(f'{"B-Number (ABML specific)*:".ljust(LengthText)}')
         ST03T1_Label10 = QLabel(f'{"Lane number (optional):".ljust(LengthText)}')
-        ST03T1_Label11 = QLabel(f'{"Lift location (optional):".ljust(LengthText)}')
+        ST03T1_Label11 = QLabel(f'{"Lift location*:".ljust(LengthText)}')
         ST03T1_Label12 = QLabel(f'{"Technician name:".ljust(LengthText)}')
         ST03T1_Label13 = QLabel(f'{"Other comments (optional):".ljust(LengthText)}')
         ST03T1_Label14 = QLabel(f'{"State of laboratory aging*:".ljust(LengthText)}')
@@ -767,9 +767,9 @@ class MainPage(QMainWindow):
         MsgBox_Template.exec_()
         # Determine the type template selected. 
         if MsgBox_Template.clickedButton() == Button1:
-            FilePath = "./example/Excel Template for HWTT.xlsx"
+            FilePath = ResourcePath(os.path.join(".", "example", "Excel Template for HWTT.xlsx"))
         elif MsgBox_Template.clickedButton() == Button2:
-            FilePath = "./example/TFHRC-ABML Text File Template for HWTT.txt"
+            FilePath = ResourcePath(os.path.join(".", "example", "TFHRC-ABML Text File Template for HWTT.txt"))
         else:           # User just closed the window.
             self.setEnabled(True)   # Activate the main page again. 
             return                  # Return Nothing. 
@@ -1407,10 +1407,15 @@ class MainPage(QMainWindow):
         RutData, RutData_shape, RutData_dtype = Array_to_Binary(np.vstack((self.Results['Passes'], 
                                                                            self.Results['RutDepth'], 
                                                                            self.Results['Temperatures'])))
+        # Check the non-mandatory parameters. 
+        try: 
+            LaneNumber = int(self.ST03T1_LineEdit_LaneNumber.text())
+        except:
+            LaneNumber = -1
         # Append the data to the database. 
         Append_to_Database(self.conn, self.cursor, {
             "Bnumber": int(self.ST03T1_LineEdit_BNumber.text()), 
-            "Lane_Num": int(self.ST03T1_LineEdit_LaneNumber.text()),
+            "Lane_Num": LaneNumber,
             "Lab_Aging": self.ST03T1_DropDown_LabAging.currentText(), 
             "RepNumber": RepNumber, 
             "Wheel_Side": self.ST03T1_DropDown_WheelSide.currentText(), 
@@ -1812,15 +1817,15 @@ class MainPage(QMainWindow):
         This function will create a new pop-up window to show the model properties.
         """
         if link == "Model_2PP":
-            jpg_path = "./assets/Model_2PP.jpg"
+            jpg_path = ResourcePath(os.path.join(".", "assets", "Model_2PP.jpg"))
             popup = ScrollableImagePopup(jpg_path)
             popup.exec_()
         elif link == "Model_Yin":
-            jpg_path = "./assets/Model_Yin.jpg"
+            jpg_path = ResourcePath(os.path.join(".", "assets", "Model_Yin.jpg"))
             popup = ScrollableImagePopup(jpg_path)
             popup.exec_()
         elif link == 'Model_6deg':
-            jpg_path = "./assets/Model_6deg.jpg"
+            jpg_path = ResourcePath(os.path.join(".", "assets", "Model_6deg.jpg"))
             popup = ScrollableImagePopup(jpg_path)
             popup.exec_()
         else:
@@ -1966,7 +1971,7 @@ class MainPage(QMainWindow):
         """
         This function simply shows the license agreement of GNU General Public License v3.0.
         """
-        with open('./LICENSE', 'r') as file:
+        with open(ResourcePath(os.path.join(".", "LICENSE")), 'r') as file:
             TEXT = file.read()
         msg_box = ScrollableMessageBox(TEXT, "License - GNU General Public License v3.0")
         if not msg_box.exec_() == QDialog.Accepted:

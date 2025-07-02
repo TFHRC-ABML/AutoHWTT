@@ -15,7 +15,7 @@ from PyQt5.QtCore import Qt
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
 from openpyxl.utils import get_column_letter
-from scripts.Alg01_UtilityFunctions import Binary_to_Array, Read_Resize_Image
+from scripts.Alg01_UtilityFunctions import Binary_to_Array, Read_Resize_Image, ResourcePath
 from scripts.Alg02_SQL_Manager import Get_DB_SummaryData, Get_Identifier_Combinations
 
 
@@ -759,7 +759,8 @@ class DB_ReviewPage(QMainWindow):
                 cell1 = ws.cell(row=NextRowIndex+i, column=j+1, value='')
                 cell1.fill = TPP_fill
         # Put the image. 
-        Image_Obj = Read_Resize_Image('./assets/Two-Part Power (2PP) Equation.png', 72)
+        Image_Obj = Read_Resize_Image(ResourcePath(os.path.join(".", "assets", "Two-Part Power (2PP) Equation.png")), 
+                                      72)
         ws.add_image(Image_Obj, f"A{NextRowIndex+1}")
         NextRowIndex += 5
         # Write the 2PP model parameters. 
@@ -813,7 +814,7 @@ class DB_ReviewPage(QMainWindow):
                 cell1 = ws.cell(row=NextRowIndex+i, column=j+1, value='')
                 cell1.fill = Yin_fill
         # Put the image. 
-        Image_Obj = Read_Resize_Image('./assets/Yin et al Equation.png', 153)
+        Image_Obj = Read_Resize_Image(ResourcePath(os.path.join(".", "assets", "Yin et al Equation.png")), 153)
         ws.add_image(Image_Obj, f"A{NextRowIndex+1}")
         NextRowIndex += 9
         # Write the 2PP model parameters. 
@@ -859,7 +860,7 @@ class DB_ReviewPage(QMainWindow):
                 cell1 = ws.cell(row=NextRowIndex+i, column=j+1, value='')
                 cell1.fill = Poly_fill
         # Put the image. 
-        Image_Obj = Read_Resize_Image('./assets/Polynomial Equation.png', 44)
+        Image_Obj = Read_Resize_Image(ResourcePath(os.path.join(".", "assets", "Polynomial Equation.png")), 44)
         ws.add_image(Image_Obj, f"A{NextRowIndex+1}")
         NextRowIndex += 4
         # Write the 2PP model parameters. 

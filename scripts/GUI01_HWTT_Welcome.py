@@ -12,6 +12,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout,
     QPushButton, QWidget, QLineEdit, QFileDialog, QMessageBox, QComboBox, QPlainTextEdit
 from PyQt5.QtGui import QPixmap, QFont, QRegExpValidator
 from PyQt5.QtCore import Qt, QRegExp
+from scripts.Alg01_UtilityFunctions import ResourcePath
 
 class HWTT_WelcomePage(QMainWindow):
     """
@@ -39,8 +40,9 @@ class HWTT_WelcomePage(QMainWindow):
         # --------------------------------------------------------------------------------------------------------------
         # Define the logo. 
         Label_Logo = QLabel()
-        CWD = os.path.dirname(os.path.abspath(__file__))
-        pixmap = QPixmap(os.path.join(CWD, "..//assets//Logo.png"))
+        # CWD = os.path.dirname(os.path.abspath(__file__))
+        # pixmap = QPixmap(os.path.join(CWD, "..//assets//Logo.png"))
+        pixmap = QPixmap(ResourcePath(os.path.join(".", "assets", "Logo.png")))
         Label_Logo.setPixmap(pixmap.scaled(500, 500, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         Label_Logo.setAlignment(Qt.AlignCenter)
         Label_LogoText = QLabel('Asphalt Binder and Mixture Laboratory')
@@ -267,17 +269,17 @@ class NewDatabaseInputs(QMainWindow):
         self.SaveDirectory = SaveDirectory
         self.FileName = FileName
         # Add this DB to the recent DBs.
-        CWD = os.path.dirname(os.path.abspath(__file__))
-        if os.path.isfile(os.path.join(CWD, '..//configs//config.json')):
-            config = json.load(open(os.path.join(CWD, '..//configs//config.json'), 'r'))
+        # CWD = os.path.dirname(os.path.abspath(__file__))
+        if os.path.isfile(ResourcePath(os.path.join(".", "configs", "config.json"))):
+            config = json.load(open(ResourcePath(os.path.join(".", "configs", "config.json")), 'r'))
             if 'Recent_DBs' not in config:
                 config['Recent_DBs'] = []
             if os.path.join(SaveDirectory, FileName + '.db') not in config['Recent_DBs']:
                 config['Recent_DBs'].append(os.path.join(SaveDirectory, FileName + '.db'))
-            json.dump(config, open(os.path.join(CWD, '..//configs//config.json'), 'w'))
+            json.dump(config, open(ResourcePath(os.path.join(".", "configs", "config.json")), 'w'))
         else:
             json.dump({'Recent_DBs': [os.path.join(SaveDirectory, FileName + '.db')]}, 
-                      open(os.path.join(CWD, '..//configs//config.json'), 'w'))
+                      open(ResourcePath(os.path.join(".", "configs", "config.json")), 'w'))
         # Close the new window
         self.close()
     # ------------------------------------------------------------------------------------------------------------------
@@ -314,10 +316,10 @@ class LoadDatabaseInputs(QMainWindow):
         self.FileName = ''
         self.SaveDirectory = ''
         # Check if the config file is available. 
-        CWD = os.path.dirname(os.path.abspath(__file__))
+        # CWD = os.path.dirname(os.path.abspath(__file__))
         try:
-            if os.path.isfile(os.path.join(CWD, '..//configs//config.json')):
-                config = json.load(open(os.path.join(CWD, '..//configs//config.json'), 'r'))
+            if os.path.isfile(ResourcePath(os.path.join(".", "configs", "config.json"))):
+                config = json.load(open(ResourcePath(os.path.join(".", "configs", "config.json")), 'r'))
                 self.RecentDBs = config['Recent_DBs']
             else:
                 self.RecentDBs = []
@@ -408,17 +410,17 @@ class LoadDatabaseInputs(QMainWindow):
                                                         f"'{Directory}'. Please user 'Browse' button to select " +
                                                         f"another file")
                 # Remove the file from the config file. 
-                CWD = os.path.dirname(os.path.abspath(__file__))
-                if os.path.isfile(os.path.join(CWD, '..//configs//config.json')):
-                    config = json.load(open(os.path.join(CWD, '..//configs//config.json'), 'r'))
+                # CWD = os.path.dirname(os.path.abspath(__file__))
+                if os.path.isfile(ResourcePath(os.path.join(".", "configs", "config.json"))):
+                    config = json.load(open(ResourcePath(os.path.join(".", "configs", "config.json")), 'r'))
                     if 'Recent_DBs' not in config:
                         config['Recent_DBs'] = []
                     if CurrentText in config['Recent_DBs']:
                         config['Recent_DBs'].remove(CurrentText)
-                    json.dump(config, open(os.path.join(CWD, '..//configs//config.json'), 'w'))
+                    json.dump(config, open(ResourcePath(os.path.join(".", "configs", "config.json")), 'w'))
                 else:
                     json.dump({'Recent_DBs': []}, 
-                            open(os.path.join(CWD, '..//configs//config.json'), 'w'))
+                            open(ResourcePath(os.path.join(".", "configs", "config.json")), 'w'))
                 # Set the current index on "Please select..."
                 self.RecentFilesDropDown.setCurrentIndex(0)
     # ------------------------------------------------------------------------------------------------------------------
@@ -443,17 +445,17 @@ class LoadDatabaseInputs(QMainWindow):
             QMessageBox.information(self, "Success", f"Database '{FileName}' Loaded successfully at " + 
                                                      f"'{Directory}'.")
             # Add the path to the "config" file. 
-            CWD = os.path.dirname(os.path.abspath(__file__))
-            if os.path.isfile(os.path.join(CWD, '..//configs//config.json')):
-                config = json.load(open(os.path.join(CWD, '..//configs//config.json'), 'r'))
+            # CWD = os.path.dirname(os.path.abspath(__file__))
+            if os.path.isfile(ResourcePath(os.path.join(".", "configs", "config.json"))):
+                config = json.load(open(ResourcePath(os.path.join(".", "configs", "config.json")), 'r'))
                 if 'Recent_DBs' not in config:
                     config['Recent_DBs'] = []
                 if FilePath not in config['Recent_DBs']:
                     config['Recent_DBs'].append(FilePath)
-                json.dump(config, open(os.path.join(CWD, '..//configs//config.json'), 'w'))
+                json.dump(config, open(ResourcePath(os.path.join(".", "configs", "config.json")), 'w'))
             else:
                 json.dump({'Recent_DBs': [FilePath]}, 
-                        open(os.path.join(CWD, '..//configs//config.json'), 'w'))
+                        open(ResourcePath(os.path.join(".", "configs", "config.json")), 'w'))
             # Save the results.
             self.FileName = FileNameNoExt
             self.SaveDirectory = Directory

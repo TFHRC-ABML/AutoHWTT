@@ -7,6 +7,7 @@
 # Importing the required libraries.
 import os
 import re
+import sys
 import ast
 import datetime
 import numpy as np
@@ -110,7 +111,7 @@ def Read_HWTT_Text_File(FilePath):
             Hr   = int(Time.split(':')[0].replace(' ', ''))
             Min  = int(Time.split(':')[1])
             if 'PM' in Time:
-                Hour += 12
+                Hr += 12
             Props['Test_Time'] = f'{Hr:02d}:{Min:02d}'
         elif 'Test type:' in cont[i]:
             if 'right' in cont[i].lower():
@@ -233,3 +234,20 @@ def Read_Resize_Image(path, targetPixel):
     Image_Obj.height = targetPixel
     Image_Obj.width  = Image_Obj.width * Ratio
     return Image_Obj
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def ResourcePath(relative_path):
+    """
+    Get the absolute path to the resource, works for dev and PyInstaller build.
+
+    :param RelativePath: The relative path, which is going to be converted to the Resource Path. 
+    """
+    if hasattr(sys, '_MEIPASS'):
+        # PyInstaller stores resources in a temporary folder (_MEIPASS)
+        return os.path.join(sys._MEIPASS, relative_path)
+    else:
+        # Use the relative path during development
+        return os.path.join(os.path.abspath(relative_path))
