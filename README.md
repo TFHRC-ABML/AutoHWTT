@@ -12,9 +12,9 @@
 
 This repository hosts the official implementation of **AutoHWTT**.
 
-**AutoHWTT** is a user-friendly GUI developed in Python to assist pavement engineers in analyzing Hamburg Wheel Tracking Test (HWTT) results for asphalt mixtures. The tool offers the following key features:
+**AutoHWTT** is a user-friendly GUI developed in Python to assist pavement engineers in analyzing Hamburg Wheel Tracking Test (HWTT) data for asphalt mixtures. The tool offers the following key features:
 
-- **Data Preparation**: Import raw HWTT results (recorded passes and their corresponding rut depths) for visualization and allow users to specify the valid portion of the data for analysis.
+- **Data Preparation**: Import raw HWTT data (recorded passes and their corresponding rut depths) for visualization and allow users to specify the valid portion of the data for analysis.
 - **Data Analysis**: Perform three distinct analysis methods:
   1. Two-Part Power (2PP) model (proposed by TFHRC ABML),
   2. Yin et al. (2014) model,
@@ -126,11 +126,11 @@ The main page (see [Figure 2](#fig-main-nodata)) will appear after loading the d
 </p>
 <p align="center"><b>Figure 2:</b> Main Page (No Data Loaded)</p>
 
-After importing one or more HWTT result files, the data will be displayed on the main page as shown in [Figure 3](#fig-main-data). Users can then utilize the "Visualization & Setting & Run" panel to specify the valid boundaries for the minimum and maximum pass numbers, define the spacing for visualizing raw data points, and determine whether the first data point is offset to zero or not. 
+After importing one or more HWTT data files, the data will be displayed on the main page as shown in [Figure 3](#fig-main-data). Users can then utilize the "Visualization & Setting & Run" panel to specify the valid boundaries for the minimum and maximum pass numbers, define the spacing for visualizing raw data points, and determine whether the first data point is offset to zero or not. 
 
 Next, under the "General" tab, the user must provide the B-number, lane number, aging state, and testing conditions for each sample. These fields are required to save the results in the database. At any point, users can click the "Reset/re-Plot raw data" button to reset the current step, change the data boundary, or adjust visualization settings.
 
-**Note**: If the HWTT results are too noisy or are deemed outliers for any reason, users can mark the results as outliers by selecting the "This result is Outlier" button. The flagged results will be saved in the database with an outlier designation.
+**Note**: If the HWTT data is too noisy or is deemed outlier for any reason, users can mark it as outlier by selecting the "This result is Outlier" button. The flagged results will be saved in the database with an outlier designation.
 
 <a id="fig-main-data"></a>
 <p align="center">
