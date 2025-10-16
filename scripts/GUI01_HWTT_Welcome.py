@@ -59,14 +59,13 @@ class HWTT_WelcomePage(QMainWindow):
         Label_Title.setStyleSheet("color: #000000;")
         layout.addWidget(Label_Title)
         # Label_Description
-        Label_Description = QLabel(f"This tool provde a graphical user intergace (GUI) for " + 
-                            f"analysis of the raw data from Hamburg Wheel\n" + 
-                            f"Tracking Tester (HWTT).\n" + 
-                            f"It reads the raw data, recognize and model the rutting and " +
-                            f"stripping behavior of the asphalt mixture\n" + 
-                            f"and save the results.\n")
+        Label_Description = QLabel(f"This tool provides a graphical user interface (GUI) for " + 
+                            f"analysis of the raw data from the \nHamburg Wheel " + 
+                            f"Tracking Test (HWTT).\n\n" + 
+                            f"It reads the raw data, recognizes and models the rutting and stripping behaviors of\n" + 
+                            f"the asphalt mixture, and saves the results.\n ")
         Label_Description.setAlignment(Qt.AlignLeft)
-        Label_Description.setFont(QFont("Arial", 12))
+        Label_Description.setFont(QFont("Arial", 12, QFont.Bold))
         Label_Description.setStyleSheet("color: #000000;")
         layout.addWidget(Label_Description)
         # --------------------------------------------------------------------------------------------------------------

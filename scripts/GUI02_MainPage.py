@@ -196,26 +196,26 @@ class MainPage(QMainWindow):
         SectT02_Layout = QVBoxLayout()
         SectT02_FormLayout = QFormLayout()
         # First, ask for the spacing of datapoints. 
-        ST02_Label01 = QLabel(f'{"Raw datapoint spacing:".ljust(70)}')
+        ST02_Label01 = QLabel(f'{"Raw Datapoint Spacing:".ljust(70)}')
         self.SpinBox_RawDataSpacing = QSpinBox()
         self.SpinBox_RawDataSpacing.setRange(2, 200)
         self.SpinBox_RawDataSpacing.setValue(40)
         SectT02_FormLayout.addRow(ST02_Label01, self.SpinBox_RawDataSpacing)
         # Add spingboxes for the valid pass values.
-        ST02_Label02 = QLabel(f'{"Boundary for minimum pass number:".ljust(70)}')
+        ST02_Label02 = QLabel(f'{"Boundary for Minimum Pass Number:".ljust(70)}')
         self.SpinBox_MinPassNumber = QSpinBox()
         self.SpinBox_MinPassNumber.setRange(0, 1000)
         self.SpinBox_MinPassNumber.setValue(0)
         self.SpinBox_MinPassNumber.setEnabled(False)
         SectT02_FormLayout.addRow(ST02_Label02, self.SpinBox_MinPassNumber)
-        ST02_Label03 = QLabel(f'{"Boundary for maximum pass number:".ljust(70)}')
+        ST02_Label03 = QLabel(f'{"Boundary for Maximum Pass Number:".ljust(70)}')
         self.SpinBox_MaxPassNumber = QSpinBox()
         self.SpinBox_MaxPassNumber.setRange(15000, 20000)
         self.SpinBox_MaxPassNumber.setValue(20000)
         self.SpinBox_MaxPassNumber.setEnabled(False)
         SectT02_FormLayout.addRow(ST02_Label03, self.SpinBox_MaxPassNumber)
         # Add a checkbox for offsetting the first data to zero. 
-        self.CheckBox_OffsetFirstRawData = QCheckBox(f'Offset the rut depth of first raw datapoint to zero')
+        self.CheckBox_OffsetFirstRawData = QCheckBox(f'Offset the Rut Depth of First Raw Datapoint to Zero')
         self.CheckBox_OffsetFirstRawData.setChecked(True)
         self.CheckBox_OffsetFirstRawData.setEnabled(False)
         SectT02_FormLayout.addRow(self.CheckBox_OffsetFirstRawData)
@@ -230,15 +230,15 @@ class MainPage(QMainWindow):
         SectT02_FormLayout_Left = QFormLayout()
         SectT02_FormLayout_Right= QFormLayout()
         self.PlotModel_ButtonGroup = QButtonGroup()
-        self.PlotModel_Label = QLabel('Active plotting model:')
+        self.PlotModel_Label = QLabel('Active Plotting Model:')
         self.PlotModel_Label.setEnabled(False)
-        self.PlotModel_2PP = QRadioButton("Two-Part Power (2PP) model")
+        self.PlotModel_2PP = QRadioButton("Two-Part Power (2PP) Model")
         self.PlotModel_2PP.setEnabled(False)
         self.PlotModel_2PP.clicked.connect(lambda: self.Function_Plot_Model_RadioButton('2PP'))
-        self.PlotModel_Yin = QRadioButton("Yin et al. (2014) model")
+        self.PlotModel_Yin = QRadioButton("Yin et al. (2014) Model")
         self.PlotModel_Yin.setEnabled(False)
         self.PlotModel_Yin.clicked.connect(lambda: self.Function_Plot_Model_RadioButton('Yin'))
-        self.PlotModel_6deg = QRadioButton("6th Degree Polynomial model")
+        self.PlotModel_6deg = QRadioButton("6th Degree Polynomial Model")
         self.PlotModel_6deg.setEnabled(False)
         self.PlotModel_6deg.clicked.connect(lambda: self.Function_Plot_Model_RadioButton('6deg'))
         self.PlotModel_2PP.setChecked(True)
@@ -256,10 +256,10 @@ class MainPage(QMainWindow):
         self.SIPAdjusted_ButtonGroup = QButtonGroup()
         self.SIPAdjusted_Label = QLabel('SIP Calculation Method:')
         self.SIPAdjusted_Label.setEnabled(False)
-        self.SIPAdjusted_Threshold = QRadioButton("Using end point at 12.5 mm")
+        self.SIPAdjusted_Threshold = QRadioButton("Using End Point at 12.5 mm")
         self.SIPAdjusted_Threshold.setEnabled(False)
         self.SIPAdjusted_Threshold.clicked.connect(lambda: self.Function_PLOT_SIPAdjusted_RadioButton('Threshold'))
-        self.SIPAdjusted_MaxRut    = QRadioButton("Using end point at Max Rut")
+        self.SIPAdjusted_MaxRut    = QRadioButton("Using End Point at Max Rut")
         self.SIPAdjusted_MaxRut.setEnabled(False)
         self.SIPAdjusted_MaxRut.clicked.connect(lambda: self.Function_PLOT_SIPAdjusted_RadioButton('MaxRut'))
         self.SIPAdjusted_ButtonGroup.addButton(self.SIPAdjusted_Threshold)
@@ -293,7 +293,7 @@ class MainPage(QMainWindow):
         QPushButton:checked {background-color: lime;}
         """)
         # Button for Replotting the raw data.
-        self.Button_ResetRePlot = QPushButton("Reset/re-Plot raw data")
+        self.Button_ResetRePlot = QPushButton("Reset/Re-Plot Raw Data")
         self.Button_ResetRePlot.setFont(QFont("Arial", 12, QFont.Bold))
         self.Button_ResetRePlot.clicked.connect(self.Function_Button_ResetRePlot)
         self.Button_ResetRePlot.setFixedSize(200, 40)
@@ -316,7 +316,7 @@ class MainPage(QMainWindow):
         SectT02_Separator2.setFrameShadow(QFrame.Sunken)
         SectT02_Layout.addWidget(SectT02_Separator2)
         # Button for specify the result as outlier.
-        self.Button_FailResult = QPushButton("This result is\nOutlier")
+        self.Button_FailResult = QPushButton("This Result is\nOutlier")
         self.Button_FailResult.setFont(QFont("Arial", 13, QFont.Bold))
         self.Button_FailResult.clicked.connect(self.Function_Button_FailResult)
         self.Button_FailResult.setFixedSize(180, 50)
@@ -329,7 +329,7 @@ class MainPage(QMainWindow):
         QPushButton:checked {background-color: lime;}
         """)
         # Button for specify the result as Accepted.
-        self.Button_AcceptResult = QPushButton("This result is\nAccepted")
+        self.Button_AcceptResult = QPushButton("This Result is\nAccepted")
         self.Button_AcceptResult.setFont(QFont("Arial", 13, QFont.Bold))
         self.Button_AcceptResult.clicked.connect(self.Function_Button_PassResult)
         self.Button_AcceptResult.setFixedSize(180, 50)
@@ -368,25 +368,25 @@ class MainPage(QMainWindow):
         ScrollAreaT03T1_Layout.addWidget(QLabel('General Information:'))
         SectT03T1_FormLayout = QFormLayout()
         LengthText = 40
-        ST03T1_Label01 = QLabel(f'{"Test name*:".ljust(LengthText)}')
-        ST03T1_Label02 = QLabel(f'{"Test date (optional):".ljust(LengthText)}')
-        ST03T1_Label03 = QLabel(f'{"Test time (optional):".ljust(LengthText)}')
-        ST03T1_Label04 = QLabel(f'{"Testing condition*:".ljust(LengthText)}')
-        ST03T1_Label05 = QLabel(f'{"Wheel path side*:".ljust(LengthText)}')
-        ST03T1_Label06 = QLabel(f'{"Target test temperature (°C):".ljust(LengthText)}')
-        ST03T1_Label07 = QLabel(f'{"Avg. recorded test temperature (°C):".ljust(LengthText)}')
-        ST03T1_Label08 = QLabel(f'{"Std. recorded test temperature (°C):".ljust(LengthText)}')
-        ST03T1_Label09 = QLabel(f'{"B-Number (ABML specific)*:".ljust(LengthText)}')
-        ST03T1_Label10 = QLabel(f'{"Lane number (optional):".ljust(LengthText)}')
-        ST03T1_Label11 = QLabel(f'{"Lift location*:".ljust(LengthText)}')
-        ST03T1_Label12 = QLabel(f'{"Technician name:".ljust(LengthText)}')
-        ST03T1_Label13 = QLabel(f'{"Other comments (optional):".ljust(LengthText)}')
-        ST03T1_Label14 = QLabel(f'{"State of laboratory aging*:".ljust(LengthText)}')
+        ST03T1_Label01 = QLabel(f'{"Test Name*:".ljust(LengthText)}')
+        ST03T1_Label02 = QLabel(f'{"Test Date (Optional):".ljust(LengthText)}')
+        ST03T1_Label03 = QLabel(f'{"Test Time (Optional):".ljust(LengthText)}')
+        ST03T1_Label04 = QLabel(f'{"Testing Condition*:".ljust(LengthText)}')
+        ST03T1_Label05 = QLabel(f'{"Wheel Path Side*:".ljust(LengthText)}')
+        ST03T1_Label06 = QLabel(f'{"Target Test Temperature (°C):".ljust(LengthText)}')
+        ST03T1_Label07 = QLabel(f'{"Avg. Recorded Test Temperature (°C):".ljust(LengthText)}')
+        ST03T1_Label08 = QLabel(f'{"Std. Recorded Test Temperature (°C):".ljust(LengthText)}')
+        ST03T1_Label09 = QLabel(f'{"B-Number (ABML Specific)*:".ljust(LengthText)}')
+        ST03T1_Label10 = QLabel(f'{"Lane Number (Optional):".ljust(LengthText)}')
+        ST03T1_Label11 = QLabel(f'{"Lift Location*:".ljust(LengthText)}')
+        ST03T1_Label12 = QLabel(f'{"Technician Name:".ljust(LengthText)}')
+        ST03T1_Label13 = QLabel(f'{"Other Comments (Optional):".ljust(LengthText)}')
+        ST03T1_Label14 = QLabel(f'{"State of Laboratory Aging*:".ljust(LengthText)}')
         self.ST03T1_LineEdit_FileName = QLineEdit()
-        self.ST03T1_LineEdit_FileName.setPlaceholderText("Enter input file name here ...")
+        self.ST03T1_LineEdit_FileName.setPlaceholderText("Enter Input File Name Here ...")
         self.ST03T1_LineEdit_FileName.setReadOnly(True)
         self.ST03T1_LineEdit_TestName = QLineEdit()            # For test name. 
-        self.ST03T1_LineEdit_TestName.setPlaceholderText("Enter test name here ...")
+        self.ST03T1_LineEdit_TestName.setPlaceholderText("Enter Test Name Here ...")
         self.ST03T1_LineEdit_TestName.setReadOnly(False)
         self.ST03T1_LineEdit_TestDate = QLineEdit()
         self.ST03T1_LineEdit_TestDate.setInputMask("99/99/9999")        # Enforce date format, but not validating it. 
@@ -397,35 +397,35 @@ class MainPage(QMainWindow):
         self.ST03T1_LineEdit_TestTime.setPlaceholderText("01/01/1999")
         self.ST03T1_LineEdit_TestTime.setReadOnly(False)
         self.ST03T1_DropDown_TestCondition = QComboBox()
-        self.ST03T1_DropDown_TestCondition.addItems(["Please select ...", "Wet", "Dry"])
+        self.ST03T1_DropDown_TestCondition.addItems(["Please Select ...", "Wet", "Dry"])
         self.ST03T1_DropDown_TestCondition.setCurrentIndex(0)
         self.ST03T1_DropDown_WheelSide = QComboBox()
-        self.ST03T1_DropDown_WheelSide.addItems(["Please select ...", "Left", "Right", "Not Determined"])
+        self.ST03T1_DropDown_WheelSide.addItems(["Please Select ...", "Left", "Right", "Not Determined"])
         self.ST03T1_DropDown_WheelSide.setCurrentIndex(0)
         self.ST03T1_DropDown_LabAging = QComboBox()
-        self.ST03T1_DropDown_LabAging.addItems(["Please select ...", "No Lab Aging (Field Core)", 
+        self.ST03T1_DropDown_LabAging.addItems(["Please Select ...", "No Lab Aging (Field Core)", 
                                                 "STOA (2hr @ 135°C)", "LTOA (8hr @ 135°C)", 
                                                 "LTOA (5 days @ 85°C)", "Others (Specify in comments)"])
         self.ST03T1_DropDown_LabAging.setCurrentIndex(0)
         self.ST03T1_LineEdit_TargetTestTemp = QLineEdit()                   # For target test temperature. 
-        self.ST03T1_LineEdit_TargetTestTemp.setPlaceholderText("Enter test target temperature ...")
+        self.ST03T1_LineEdit_TargetTestTemp.setPlaceholderText("Enter Test Target Temperature ...")
         self.ST03T1_LineEdit_TargetTestTemp.setReadOnly(False)
         Validator4TargetTemp = QDoubleValidator(0.00, 99.99, 2)
         Validator4TargetTemp.setNotation(QDoubleValidator.StandardNotation)
         self.ST03T1_LineEdit_TargetTestTemp.setValidator(QDoubleValidator(0, 99.99, 2))
         self.ST03T1_LineEdit_AvgTestTemp = QLineEdit()                      # For Average of recorded temps. 
-        self.ST03T1_LineEdit_AvgTestTemp.setPlaceholderText("Avg. test temperature will be displayed here.")
+        self.ST03T1_LineEdit_AvgTestTemp.setPlaceholderText("Avg. Test Temperature Will be Displayed Here.")
         self.ST03T1_LineEdit_AvgTestTemp.setReadOnly(True)
         self.ST03T1_LineEdit_StdTestTemp = QLineEdit()                      # For Standard deviation of recorded temps. 
-        self.ST03T1_LineEdit_StdTestTemp.setPlaceholderText("Std. test temperature will be displayed here.")
+        self.ST03T1_LineEdit_StdTestTemp.setPlaceholderText("Std. Test Temperature Will be Displayed Here.")
         self.ST03T1_LineEdit_StdTestTemp.setReadOnly(True)
         self.ST03T1_LineEdit_BNumber = QLineEdit()                          # For B-number.
-        self.ST03T1_LineEdit_BNumber.setPlaceholderText("Enter only 4 or 5-digit B-number ...")
+        self.ST03T1_LineEdit_BNumber.setPlaceholderText("Enter Only 4 or 5-digit B-number ...")
         self.ST03T1_LineEdit_BNumber.setReadOnly(False)
         IntValidator = QIntValidator(1000, 99999)
         self.ST03T1_LineEdit_BNumber.setValidator(IntValidator)
         self.ST03T1_LineEdit_LaneNumber = QLineEdit()                       # For Lane number. 
-        self.ST03T1_LineEdit_LaneNumber.setPlaceholderText("Enter only lane number (1-11) ...")
+        self.ST03T1_LineEdit_LaneNumber.setPlaceholderText("Enter Only Lane Number (1-11) ...")
         self.ST03T1_LineEdit_LaneNumber.setReadOnly(False)
         LnNumValidator = QIntValidator(1, 11)
         self.ST03T1_LineEdit_LaneNumber.setValidator(IntValidator)
@@ -436,9 +436,9 @@ class MainPage(QMainWindow):
         self.ST03T1_LineEdit_TechnicianName.setPlaceholderText("Enter Technician Name ...")
         self.ST03T1_LineEdit_TechnicianName.setReadOnly(False)
         self.ST03T1_LineEdit_OtherComments = QLineEdit()                    # For Other comments
-        self.ST03T1_LineEdit_OtherComments.setPlaceholderText("Enter any other comment ...")
+        self.ST03T1_LineEdit_OtherComments.setPlaceholderText("Enter Any Other Comment ...")
         self.ST03T1_LineEdit_OtherComments.setReadOnly(False)
-        SectT03T1_FormLayout.addRow(QLabel('FileName'), self.ST03T1_LineEdit_FileName)
+        SectT03T1_FormLayout.addRow(QLabel('File Name'), self.ST03T1_LineEdit_FileName)
         SectT03T1_FormLayout.addRow(ST03T1_Label01, self.ST03T1_LineEdit_TestName)
         SectT03T1_FormLayout.addRow(ST03T1_Label09, self.ST03T1_LineEdit_BNumber)
         SectT03T1_FormLayout.addRow(ST03T1_Label10, self.ST03T1_LineEdit_LaneNumber)
@@ -465,17 +465,17 @@ class MainPage(QMainWindow):
         ScrollContent2 = QWidget()
         ScrollAreaT03T2.setWidget(ScrollContent2)
         ScrollAreaT03T2_Layout = QVBoxLayout(ScrollContent2)
-        self.AnalysisParam_Label_2PP = QLabel('For the <a href="Model_2PP">Two-Part Power (2PP)</a> model, which is developed by FHWA.')
+        self.AnalysisParam_Label_2PP = QLabel('For the <a href="Model_2PP">Two-Part Power (2PP)</a> Model, which is Developed by FHWA.')
         self.AnalysisParam_Label_2PP.setOpenExternalLinks(False)
         self.AnalysisParam_Label_2PP.linkActivated.connect(self.Function_Show_Model_Properties)
         ScrollAreaT03T2_Layout.addWidget(self.AnalysisParam_Label_2PP)
-        ScrollAreaT03T2_Layout.addWidget(QLabel('Fitted model coefficients:'))
+        ScrollAreaT03T2_Layout.addWidget(QLabel('Fitted Model Coefficients:'))
         self.ModelParam_Table = QTableWidget(7, 3)
         self.ModelParam_Table.setHorizontalHeaderLabels(["Parameter", "Value", "Comment"])
         self.ModelParam_Table.setMinimumHeight(245)
         for i, (parameter, comment) in enumerate(zip(['a', 'b', 'SN', 'α', 'β', 'γ', 'Φ'], 
-                                                   ['1st model', '1st model', 'Boundary point', '2nd model', 
-                                                    '2nd model', '2nd model', '2nd model'])):
+                                                   ['1st Model', '1st Model', 'Boundary Point', '2nd Model', 
+                                                    '2nd Model', '2nd Model', '2nd Model'])):
             self.ModelParam_Table.setItem(i, 0, QTableWidgetItem(parameter))
             self.ModelParam_Table.setItem(i, 1, QTableWidgetItem('Ν/Α'))
             self.ModelParam_Table.setItem(i, 2, QTableWidgetItem(comment))
@@ -496,11 +496,11 @@ class MainPage(QMainWindow):
         ScrollAreaT03T3.setWidget(ScrollContent3)
         ScrollAreaT03T3_Layout = QVBoxLayout(ScrollContent3)
         self.AnalysisParam_Label_2PP = QLabel()
-        self.AnalysisParam_Label_2PP.setText('For the <a href="Model_2PP">Two-Part Power (2PP)</a> model, which is developed by FHWA.')
+        self.AnalysisParam_Label_2PP.setText('For the <a href="Model_2PP">Two-Part Power (2PP)</a> Model, which is Developed by FHWA.')
         self.AnalysisParam_Label_2PP.setOpenExternalLinks(False)
         self.AnalysisParam_Label_2PP.linkActivated.connect(self.Function_Show_Model_Properties)
         ScrollAreaT03T3_Layout.addWidget(self.AnalysisParam_Label_2PP)
-        ScrollAreaT03T3_Layout.addWidget(QLabel('Analysis parameters (results):'))
+        ScrollAreaT03T3_Layout.addWidget(QLabel('Analysis Parameters (Results):'))
         self.AnalysisParam_Table = QTableWidget(16, 3)
         self.AnalysisParam_Table.setColumnWidth(0, 170) 
         self.AnalysisParam_Table.setColumnWidth(1, 70) 
@@ -509,17 +509,17 @@ class MainPage(QMainWindow):
         self.AnalysisParam_Table.setHorizontalHeaderLabels(["Parameter", "Value", "Comment"])
         for i, (parameter, comment) in enumerate(zip(
             ['Max Rut Depth (mm)', 'Max Passes', 'Rutting @ 10,000 (mm)', 'Rutting @ 20,000 (mm)', 
-             'Stripping rut depth (mm)', 'Stripping Number (SN)', 
+             'Stripping Rut Depth (mm)', 'Stripping Number (SN)', 
              'Stripping Inflection Point (SIP)', 'SIP Y-val (mm)', 
-             'Adjusted SIP (12.5 mm threshold)', 'Adjusted SIP Y-value (mm)',  
-             'Creep line slope', 'Creep line intercept (mm)', 
-             'Stripping line slope', 'Stripping line intercept (mm)', 
-             'Adjusted stripping line slope', 'Adjusted stripping line intercept (mm)',], 
-            ['Ruttting+Stripping', '', 'Rutting only', 'Rutting only', 'Stripping only', 'Boudary point', 
+             'Adjusted SIP (12.5 mm Threshold)', 'Adjusted SIP Y-value (mm)',  
+             'Creep Line Slope', 'Creep Line Intercept (mm)', 
+             'Stripping Line Slope', 'Stripping Line Intercept (mm)', 
+             'Adjusted Stripping Line Slope', 'Adjusted Stripping Line Intercept (mm)',], 
+            ['Ruttting+Stripping', '', 'Rutting Only', 'Rutting Only', 'Stripping Only', 'Boudary Point', 
              '-', '-', '-', '-', 
-             'Tang. line to creep phase', 'Tang. line to creep phase', 
-             'Tang. line to strip. phase', 'Tang. line to strip. phase', 
-             'Tang. line to strip. phase (Adjusted)', 'Tang. line to strip. phase (Adjusted)'])):
+             'Tang. Line to Creep Phase', 'Tang. Line to Creep Phase', 
+             'Tang. Line to Strip. Phase', 'Tang. Line to Strip. Phase', 
+             'Tang. Line to Strip. Phase (Adjusted)', 'Tang. Line to Strip. Phase (Adjusted)'])):
             self.AnalysisParam_Table.setItem(i, 0, QTableWidgetItem(parameter))
             self.AnalysisParam_Table.setItem(i, 1, QTableWidgetItem('Ν/Α'))
             self.AnalysisParam_Table.setItem(i, 2, QTableWidgetItem(comment))
@@ -540,11 +540,11 @@ class MainPage(QMainWindow):
         ScrollContent4 = QWidget()
         ScrollAreaT03T4.setWidget(ScrollContent4)
         ScrollAreaT03T4_Layout = QVBoxLayout(ScrollContent4)
-        self.AnalysisParam_Label_Yin = QLabel('For the <a href="Model_Yin">Yin et al. (2014)</a> model, which is developed by Yin et al. (2014).')
+        self.AnalysisParam_Label_Yin = QLabel('For the <a href="Model_Yin">Yin et al. (2014)</a> Model, which is Developed by Yin et al. (2014).')
         self.AnalysisParam_Label_Yin.setOpenExternalLinks(False)
         self.AnalysisParam_Label_Yin.linkActivated.connect(self.Function_Show_Model_Properties)
         ScrollAreaT03T4_Layout.addWidget(self.AnalysisParam_Label_Yin)
-        ScrollAreaT03T4_Layout.addWidget(QLabel('Analysis results:'))
+        ScrollAreaT03T4_Layout.addWidget(QLabel('Analysis Results:'))
         self.AnalysisParam_Yin_Table = QTableWidget(19, 3)
         self.AnalysisParam_Yin_Table.setColumnWidth(0, 170) 
         self.AnalysisParam_Yin_Table.setColumnWidth(1, 70) 
@@ -554,14 +554,14 @@ class MainPage(QMainWindow):
         for i, (parameter, comment) in enumerate(zip(
             ['Max Rut Depth (mm)', 'Max Passes', 'Rutting @ 10,000 (mm)', 'Rutting @ 20,000 (mm)', 
              'LCSN', 'LCST', 'Δεp @ 10,000',
-             'Stripping rut depth (mm)', 'Stripping Number (SN)',
+             'Stripping Rut Depth (mm)', 'Stripping Number (SN)',
              'Stripping Inflection Point (SIP)', 'SIP Y-value (mm)', 
-             'Adjusted SIP (12.5 mm threshold)', 'Adjusted SIP Y-value (mm)',  
-             'Creep line slope', 'Creep line intercept (mm)', 
-             'Stripping line slope', 'Stripping line intercept (mm)', 
-             'Adjusted stripping line slope', 'Adjusted stripping line intercept (mm)', ], 
-            ['Ruttting+Stripping', '', 'Rutting only', 'Rutting only', 
-             '-', '-', 'Rutting only',
+             'Adjusted SIP (12.5 mm Threshold)', 'Adjusted SIP Y-value (mm)',  
+             'Creep Line Slope', 'Creep Line Intercept (mm)', 
+             'Stripping Line slope', 'Stripping Line Intercept (mm)', 
+             'Adjusted Stripping Line Slope', 'Adjusted Stripping Line Intercept (mm)', ], 
+            ['Ruttting+Stripping', '', 'Rutting Only', 'Rutting Only', 
+             '-', '-', 'Rutting Only',
              'Stripping only', 'Boudary point', '-', '-', '-', '-', 
              'Tang. line to creep phase', 'Tang. line to creep phase', 
              'Tang. line to strip. phase', 'Tang. line to strip. phase', 
@@ -574,7 +574,7 @@ class MainPage(QMainWindow):
         self.AnalysisParam_Yin_Table.setSelectionMode(QTableWidget.ContiguousSelection)    # Allow selecting multiple cells
         self.AnalysisParam_Yin_Table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)     # Don't allow vertical scroll
         ScrollAreaT03T4_Layout.addWidget(self.AnalysisParam_Yin_Table)
-        ScrollAreaT03T4_Layout.addWidget(QLabel('Fitted model coefficients:'))
+        ScrollAreaT03T4_Layout.addWidget(QLabel('Fitted Model Coefficients:'))
         self.ModelParam_Yin_Table = QTableWidget(9, 3)
         self.ModelParam_Yin_Table.setColumnWidth(0, 170) 
         self.ModelParam_Yin_Table.setColumnWidth(1, 70) 
@@ -583,10 +583,10 @@ class MainPage(QMainWindow):
         self.ModelParam_Yin_Table.setHorizontalHeaderLabels(["Parameter", "Value", "Comment"])
         for i, (parameter, comment) in enumerate(zip(
             ['ρ', 'LCult', 'β', 'Rut∞', 'α', 'λ', 'ε0', 'θ', 'SN'],
-            ['Step 1 model (SN estimation)', 'Step 1 model (SN estimation)', 'Step 1 model (SN estimation)', 
-             'Step 2 model (corrected rut depth)', 'Step 2 model (corrected rut depth)', 
-             'Step 2 model (corrected rut depth)', 
-             'Step 3 model (stripping)', 'Step 3 model (stripping)', 'Step 3 model (stripping)'])):
+            ['Step 1 Model (SN Estimation)', 'Step 1 Model (SN Estimation)', 'Step 1 Model (SN Estimation)', 
+             'Step 2 Model (Corrected Rut Depth)', 'Step 2 Model (Corrected Rut Depth)', 
+             'Step 2 Model (Corrected Rut Depth)', 
+             'Step 3 Model (Stripping)', 'Step 3 Model (Stripping)', 'Step 3 Model (Stripping)'])):
             self.ModelParam_Yin_Table.setItem(i, 0, QTableWidgetItem(parameter))
             self.ModelParam_Yin_Table.setItem(i, 1, QTableWidgetItem('Ν/Α'))
             self.ModelParam_Yin_Table.setItem(i, 2, QTableWidgetItem(comment))
@@ -607,7 +607,7 @@ class MainPage(QMainWindow):
         ScrollContent5 = QWidget()
         ScrollAreaT03T5.setWidget(ScrollContent5)
         ScrollAreaT03T5_Layout = QVBoxLayout(ScrollContent5)
-        self.AnalysisParam_Label_6deg = QLabel('For the <a href="Model_6deg">6th Degree Polynomial</a> model.')
+        self.AnalysisParam_Label_6deg = QLabel('For the <a href="Model_6deg">6th Degree Polynomial</a> Model.')
         self.AnalysisParam_Label_6deg.setOpenExternalLinks(False)
         self.AnalysisParam_Label_6deg.linkActivated.connect(self.Function_Show_Model_Properties)
         ScrollAreaT03T5_Layout.addWidget(self.AnalysisParam_Label_6deg)
@@ -620,11 +620,11 @@ class MainPage(QMainWindow):
         self.AnalysisParam_6deg_Table.setHorizontalHeaderLabels(["Parameter", "Value", "Comment"])
         for i, (parameter, comment) in enumerate(zip(
             ['Max Rut Depth (mm)', 'Max Passes', 'Rutting @ 10,000 (mm)', 'Rutting @ 20,000 (mm)', 
-             'Stripping rut depth (mm)', 'Stripping Number (SN)',
-             'Creep line slope', 'Creep line intercept (mm)'], 
-            ['Ruttting+Stripping', '', 'Rutting only', 'Rutting only', 
-             'Stripping only', 'Boudary point', 
-             'Tang. line to creep phase', 'Tang. line to creep phase'])):
+             'Stripping Rut Depth (mm)', 'Stripping Number (SN)',
+             'Creep Line Slope', 'Creep Line Intercept (mm)'], 
+            ['Ruttting+Stripping', '', 'Rutting Only', 'Rutting Only', 
+             'Stripping Only', 'Boudary Point', 
+             'Tang. Line to Creep Phase', 'Tang. Line to Creep Phase'])):
             self.AnalysisParam_6deg_Table.setItem(i, 0, QTableWidgetItem(parameter))
             self.AnalysisParam_6deg_Table.setItem(i, 1, QTableWidgetItem('Ν/Α'))
             self.AnalysisParam_6deg_Table.setItem(i, 2, QTableWidgetItem(comment))
@@ -642,8 +642,8 @@ class MainPage(QMainWindow):
         self.ModelParam_6deg_Table.setHorizontalHeaderLabels(["Parameter", "Value", "Comment"])
         for i, (parameter, comment) in enumerate(zip(
             ['a0', 'a1', 'a2', 'a3', 'a4', 'a5', 'a6'], 
-            ['Polynomial coefficients', 'Polynomial coefficients', 'Polynomial coefficients', 'Polynomial coefficients', 
-             'Polynomial coefficients', 'Polynomial coefficients', 'Polynomial coefficients'])):
+            ['Polynomial Coefficients', 'Polynomial Coefficients', 'Polynomial Coefficients', 'Polynomial Coefficients', 
+             'Polynomial Coefficients', 'Polynomial Coefficients', 'Polynomial Coefficients'])):
             self.ModelParam_6deg_Table.setItem(i, 0, QTableWidgetItem(parameter))
             self.ModelParam_6deg_Table.setItem(i, 1, QTableWidgetItem('Ν/Α'))
             self.ModelParam_6deg_Table.setItem(i, 2, QTableWidgetItem(comment))
@@ -659,7 +659,7 @@ class MainPage(QMainWindow):
         self.SectT03_TabWidget.addTab(Tab1, "General")
         self.SectT03_TabWidget.addTab(Tab2, "Fitted Model (2PP)")
         self.SectT03_TabWidget.addTab(Tab3, "Analysis Params (2PP)")
-        self.SectT03_TabWidget.addTab(Tab4, "Analysis Params (Yin et al. model)")
+        self.SectT03_TabWidget.addTab(Tab4, "Analysis Params (Yin et al. Model)")
         self.SectT03_TabWidget.addTab(Tab5, "Analysis Params (6th deg. Polynomial)")
         SectT03_Layout.addWidget(self.SectT03_TabWidget)
         SectT03.setLayout(SectT03_Layout)
@@ -683,6 +683,7 @@ class MainPage(QMainWindow):
         self.axes.set_ylabel('Rut depth (mm)', fontsize=10, fontweight='bold', color='k')
         self.axes.grid(which='both', color='gray', alpha=0.1)
         self.axes.set_xlim([0, 20000])
+        self.axes.set_xticklabels([f'{num:,.0f}' for num in self.axes.get_xticks()])
         self.axes.set_ylim([0, 10])
         self.fig.set_constrained_layout(True)
         self.canvas.draw()
@@ -798,7 +799,7 @@ class MainPage(QMainWindow):
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Button_Add_Text_Files(self):
         # This function will first ask user to select the input text result files, and then it will run them one by one. 
-        FileList, _ = QFileDialog.getOpenFileNames(self, caption='Please select new HWTT result files:', 
+        FileList, _ = QFileDialog.getOpenFileNames(self, caption='Please Select new HWTT result files:', 
                                                    directory='', 
                                                    filter="Text Files (*.txt);;All Files (*)")
         self.CurrentFileList = FileList
@@ -831,7 +832,7 @@ class MainPage(QMainWindow):
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Button_Add_Excel_Files(self):
         # This function will first ask user to select the input text result files, and then it will run them one by one. 
-        FileList, _ = QFileDialog.getOpenFileNames(self, caption='Please select new HWTT result files:', 
+        FileList, _ = QFileDialog.getOpenFileNames(self, caption='Please Select new HWTT result files:', 
                                                    directory='', 
                                                    filter="Excel Files (*.xlsx);;All Files (*)")
         self.CurrentFileList = FileList
@@ -903,7 +904,7 @@ class MainPage(QMainWindow):
         OutlierXmax = Passes.max()
         # Plotting the raw data. 
         self.axes.clear()           # Clear the plot. 
-        self.axes.plot(X, Y, ls='', marker='o', ms=2, color='green', alpha=0.5, label='Raw datapoints')
+        self.axes.plot(X, Y, ls='', marker='o', ms=2, color='green', alpha=0.5, label='Raw Datapoints')
         if OutlierXmin != OutlierXmax:
             OutlierIndx = np.where((Passes > OutlierXmin) & (Passes <= OutlierXmax))[0]
             OutX = Passes[OutlierIndx[::RawSpacing]]
@@ -911,10 +912,10 @@ class MainPage(QMainWindow):
             if self.CheckBox_OffsetFirstRawData.isChecked():
                 OutY -= RutDepth[0]
             self.axes.plot(OutX, OutY, ls='', marker='d', ms=2, markerfacecolor='none', color='k', 
-                           label='Outlier datapoints')
+                           label='Outlier Datapoints')
             self.axes.axvspan(xmin=OutlierXmin, xmax=OutlierXmax, color='r', alpha=0.2, label='Outlier interval')
-        self.axes.set_xlabel('Number of passes', fontsize=10, fontweight='bold', color='k')
-        self.axes.set_ylabel('Rut depth (mm)', fontsize=10, fontweight='bold', color='k')
+        self.axes.set_xlabel('Number of Passes', fontsize=10, fontweight='bold', color='k')
+        self.axes.set_ylabel('Rut Depth (mm)', fontsize=10, fontweight='bold', color='k')
         self.axes.grid(which='both', color='gray', alpha=0.1)
         # ------------------------------------------
         # Plotting only the raw data. 
@@ -1080,6 +1081,7 @@ class MainPage(QMainWindow):
                 if Passes.max() <= 20000:
                     self.axes.set_xlim([0, 20000])
                 self.axes.set_ylim([0, max([RutDepth.max(), self.Results['6deg']['Ymodel'].max()]) * 1.05])
+        self.axes.set_xticklabels([f'{num:,.0f}' for num in self.axes.get_xticks()])
         self.fig.set_constrained_layout(True)
         self.canvas.draw()
     # ------------------------------------------------------------------------------------------------------------------
@@ -1090,8 +1092,8 @@ class MainPage(QMainWindow):
         # Clear the results (2PP model).
         self.SectT03_TabWidget.setCurrentIndex(0)
         for i, (parameter, comment) in enumerate(zip(['a', 'b', 'SN', 'α', 'β', 'γ', 'Φ'], 
-                                                     ['1st model', '1st model', 'Boundary point', '2nd model', 
-                                                      '2nd model', '2nd model', '2nd model'])):
+                                                     ['1st Model', '1st Model', 'Boundary Point', '2nd Model', 
+                                                      '2nd Model', '2nd Model', '2nd Model'])):
             self.ModelParam_Table.setItem(i, 0, QTableWidgetItem(parameter))
             self.ModelParam_Table.setItem(i, 1, QTableWidgetItem('Ν/Α'))
             self.ModelParam_Table.setItem(i, 2, QTableWidgetItem(comment))
@@ -1429,7 +1431,7 @@ class MainPage(QMainWindow):
             "TPP_RuttingAt10k_mm": self.Results["2PP"]["Rutting@10k_mm"], 
             "TPP_RuttingAt20k_mm": self.Results["2PP"]["Rutting@20k_mm"], 
             "TPP_ModelCoeff_a": self.Results["2PP"]["Rutting_PowerModel_Coeff"][0], 
-            "TPP_ModelCoeff_b": self.Results["2PP"]["Rutting_PowerModel_Coeff"][0], 
+            "TPP_ModelCoeff_b": self.Results["2PP"]["Rutting_PowerModel_Coeff"][1], 
             "TPP_ModelCoeff_alpha": self.Results["2PP"]["Rutting_PowerModel_Part2_Coeff"][0], 
             "TPP_ModelCoeff_beta": self.Results["2PP"]["Rutting_PowerModel_Part2_Coeff"][1], 
             "TPP_ModelCoeff_gamma": self.Results["2PP"]["Rutting_PowerModel_Part2_Coeff"][2], 
@@ -1670,6 +1672,7 @@ class MainPage(QMainWindow):
             self.axes.set_ylabel('Rut depth (mm)', fontsize=10, fontweight='bold', color='k')
             self.axes.grid(which='both', color='gray', alpha=0.1)
             self.axes.set_xlim([0, 20000])
+            self.axes.set_xticklabels([f'{num:,.0f}' for num in self.axes.get_xticks()])
             self.axes.set_ylim([0, 10])
             self.fig.set_constrained_layout(True)
             self.canvas.draw()
@@ -1798,8 +1801,8 @@ class MainPage(QMainWindow):
         self.Results['Temperatures'] = Temperature.copy()
         self.Results['Props']        = Props.copy()
         # Update the progress bar. 
-        self.Label_InputFileUpdate.setText(f'Processing files: ' + 
-                                           f'{self.CurrentFileIndex}/{len(self.CurrentFileList)} done!')
+        self.Label_InputFileUpdate.setText(f'Processing Files: ' + 
+                                           f'{self.CurrentFileIndex}/{len(self.CurrentFileList)} Done!')
         self.ProgressBar.setValue(int((self.CurrentFileIndex + 0.5) / len(self.CurrentFileList) * 100))
         # --------------------------------------------------------------------------------------------------------------
         # Update the valid passes and their corresponding spinboxes. 
