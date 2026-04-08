@@ -10,27 +10,39 @@ import warnings
 import numpy as np
 import pandas as pd
 from time import perf_counter
-from scipy.optimize import curve_fit, differential_evolution
+from scipy.optimize import curve_fit, differential_evolution, newton
+from scipy.interpolate import CubicSpline
 from sklearn.metrics import r2_score
 
 
-def HWTT_Analysis(X, Y):
+def HWTT_Analysis(X, Y, Guide2PP):
     """
     This is the main function which analyze the HWTT data by fitting Two-Part Model (2PP), Yin et al. (2014) model, and 
     6th degree polynomial model and extracting the analysis parameters. 
 
     :param X: An array of the number of passes (should not include NaN values). 
     :param Y: An array of the rut depths (should not include NaN values). 
+    :param Guide2PP: A boolean specify whether the 2PP model is guided by the SN from the Yin et al. model. 
     """
-    # First run the 2PP model. 
+    # Estimate the Stripping Number using the polynomial method.
     TimeTrack = perf_counter()
-    Res2PP = HWTT_Analysis_2PP(X, Y)
-    Res2PP['RunTime'] = perf_counter() - TimeTrack
-    # -------------------------------------------------
+    SN_est = Estimate_SN(X, Y)
+    Time_SN = perf_counter() - TimeTrack
+    # ------------------------------------------------- 
     # Run the Yin et al. model. 
     TimeTrack = perf_counter()
     ResYin = HWTT_Analysis_Yin(X, Y)
     ResYin['RunTime'] = perf_counter() - TimeTrack
+    # -------------------------------------------------
+    # Run the Francken model. 
+    TimeTrack = perf_counter()
+    ResFnk = HWTT_Analysis_Francken(X, Y, SN_est)
+    ResFnk['RunTime'] = perf_counter() - TimeTrack
+    # -------------------------------------------------
+    # Run the 2PP model. 
+    TimeTrack = perf_counter()
+    Res2PP = HWTT_Analysis_2PP(X, Y, SN_est, Guide2PP)
+    Res2PP['RunTime'] = perf_counter() - TimeTrack
     # -------------------------------------------------
     # Run the 6th degree polynomial model. 
     TimeTrack = perf_counter()
@@ -40,6 +52,7 @@ def HWTT_Analysis(X, Y):
     # Aggregate and return the results.
     return {
         '2PP' : Res2PP, 
+        'Fnk' : ResFnk,
         'Yin' : ResYin,
         '6deg': Res6deg,
     } 
@@ -48,90 +61,118 @@ def HWTT_Analysis(X, Y):
 # ======================================================================================================================
 
 
-def HWTT_Analysis_2PP(X, Y):
+def HWTT_Analysis_2PP(X, Y, SN_est, Guided2PP):
     """
     This is the main function to fit the proposed Two-Part Power (2PP) model to the HWTT raw data. This model has been 
     developed at the Asphalt Binder and Mixture Laboratory (ABML) of the FHWA's Turner-Fairbank Highway Research Center 
-    (TFHRC). 
+    (TFHRC).
 
-    :param X: An array of the number of passes (should not include NaN values). 
-    :param Y: An array of the rut depths (should not include NaN values). 
+    Args:
+        X (np.ndarray): An array of the number of passes (should not include NaN values). 
+        Y (np.ndarray): An array of the rut depths (should not include NaN values). 
+        SN_est (int): Estimated Stripping Number (SN) from the polynomial and power function fitting method. 
+        Guided2PP (Boolean): Whether the SN estimation algorithm within the 2PP model is guided by the estimated SN 
+            value or not.
+
+    Returns:
+        _type_: _description_
     """
     # # Ignore the exact zeros (DONT REMEMBER WHY???!!!). 
     # Indx = np.where(Y > 0)[0]
     # X = X[Indx].copy()
     # Y = Y[Indx].copy()
     # ------------------------------------------------------------------------------------------------------------------
+    # If the spacing between the datapoints is more than 5, use cubic spline interpolation to distribute the data. 
+    AvgSpacing = (X.max() - X.min()) / len(X)
+    if AvgSpacing > 5:
+        XX = np.arange(0, int(X.max()) + 1, 1)
+        CSFunc = CubicSpline(X, Y)
+        YY = CSFunc(XX)
+        X = XX.copy()
+        Y = YY.copy()
+    # ------------------------------------------------------------------------------------------------------------------
     # First extract the maximum number of passes and its corresponding rut depth. 
     MaxRut = Y[-1]
     MaxPass= X[-1]
     # ------------------------------------------------------------------------------------------------------------------
-    # Using the intercept concept by fitting linear regression model, find the boundary of creep phase. 
-    Step = min([250, len(X) / 10])  # Use a sweeping span of 250 datapoints (500 cycles) or one-tenth of all datapoints.
-    CurIndex = 0
-    Intercepts, Indices = [], []
-    # ModelRMSE, PredictRMSE = [], []
-    while CurIndex < len(X):
-        CurIndex += Step
-        Xi, Yi = X[CurIndex-Step:CurIndex], Y[CurIndex-Step:CurIndex]       # Extract the data in sweeping region. 
-        Coeff = np.polyfit(Xi, Yi, 1)                                       # Fit a line to the datapoints. 
-        Intercepts.append(Coeff[1])
-        Indices.append(CurIndex)
-        # # --------------------------------------------------------------------------
-        # # Also calculate the RMSE for the next step predictions. (ELIMINATED)
-        # Xm = X[:CurIndex]           # Define the X and Y values to fit the model. 
-        # Ym = Y[:CurIndex]
-        # # Provide an initial guess. 
-        # idx1 = int(len(Xm) / 3)
-        # idx2 = int(len(Xm) * 3 / 4)
-        # x1, y1 = X[idx1], Y[idx1]
-        # x2, y2 = X[idx2], Y[idx2]
-        # b = np.log(y1 / y2) / np.log(x1 / x2)
-        # a = np.exp(np.log(y1) - b * np.log(x1))
-        # # Fit the power model. 
-        # coeff, _ = curve_fit(ModelPower, Xm, Ym, p0=[a, b])
-        # # Calculate the RMSE. 
-        # RMSE = np.sqrt(((Ym - ModelPower(Xm, coeff[0], coeff[1])) ** 2).sum() / len(Xm))
-        # ModelRMSE.append(RMSE)
-        # # Find the next step data. 
-        # Xii, Yii = X[CurIndex:CurIndex+Step], Y[CurIndex:CurIndex+Step]
-        # # Calculate the next step RMSE. 
-        # if len(Xii) != 0:
-        #     RMSE2 = np.sqrt(((Yii - ModelPower(Xii, coeff[0], coeff[1])) ** 2).sum() / len(Xii))
-        # else: 
-        #     RMSE2 = 0
-        # PredictRMSE.append(RMSE2)
-        # # --------------------------------------------------------------------------
-    Intercepts = np.array(Intercepts)
-    idx = np.argmax(Intercepts)
-    SN_Index = Indices[idx]
-    if SN_Index >= len(X):
-        SN_Index = len(X) - 1
-    # Fine tune the SN number (search over the 500 points before and after this point).
-    Intercepts, Indices = [], []
-    for idx in range(SN_Index - 500, SN_Index + 500): 
-        if idx > len(X) - 2:
-            break
-        Xi, Yi = X[idx - int(Step / 2):idx + int(Step / 2)], Y[idx - int(Step / 2):idx + int(Step / 2)]
-        Coeff = np.polyfit(Xi, Yi, 1)
-        Intercepts.append(Coeff[1])
-        Indices.append(idx)
-    Intercepts = np.array(Intercepts)
-    idx = np.argmax(Intercepts)
-    SN_Index = Indices[idx]
-    if SN_Index >= len(X):
-        SN_Index = len(X) - 1
-    SN_estimated = X[SN_Index]
+    # If guided by the estimation, use the estimated SN.
+    if Guided2PP:
+        SN_estimated = SN_est
+    else:
+        # Using the intercept concept by fitting linear regression model, find the boundary of creep phase. 
+        Step = min([250, len(X) // 10])  # Use a sweeping span of 250 datapoints (500 cycles) or one-tenth of all datapoints.
+        CurIndex = 0
+        Intercepts, Indices = [], []
+        # ModelRMSE, PredictRMSE = [], []
+        if Guided2PP:
+            MaxIndex = np.where(X < SN_est + 3000)[0][-1]
+        else:
+            MaxIndex = len(X)
+        while CurIndex < MaxIndex:
+            CurIndex += Step
+            Xi, Yi = X[CurIndex-Step:CurIndex], Y[CurIndex-Step:CurIndex]       # Extract the data in sweeping region. 
+            Coeff = np.polyfit(Xi, Yi, 1)                                       # Fit a line to the datapoints. 
+            Intercepts.append(Coeff[1])
+            Indices.append(CurIndex)
+            # # --------------------------------------------------------------------------
+            # # Also calculate the RMSE for the next step predictions. (ELIMINATED)
+            # Xm = X[:CurIndex]           # Define the X and Y values to fit the model. 
+            # Ym = Y[:CurIndex]
+            # # Provide an initial guess. 
+            # idx1 = int(len(Xm) / 3)
+            # idx2 = int(len(Xm) * 3 / 4)
+            # x1, y1 = X[idx1], Y[idx1]
+            # x2, y2 = X[idx2], Y[idx2]
+            # b = np.log(y1 / y2) / np.log(x1 / x2)
+            # a = np.exp(np.log(y1) - b * np.log(x1))
+            # # Fit the power model. 
+            # coeff, _ = curve_fit(ModelPower, Xm, Ym, p0=[a, b])
+            # # Calculate the RMSE. 
+            # RMSE = np.sqrt(((Ym - ModelPower(Xm, coeff[0], coeff[1])) ** 2).sum() / len(Xm))
+            # ModelRMSE.append(RMSE)
+            # # Find the next step data. 
+            # Xii, Yii = X[CurIndex:CurIndex+Step], Y[CurIndex:CurIndex+Step]
+            # # Calculate the next step RMSE. 
+            # if len(Xii) != 0:
+            #     RMSE2 = np.sqrt(((Yii - ModelPower(Xii, coeff[0], coeff[1])) ** 2).sum() / len(Xii))
+            # else: 
+            #     RMSE2 = 0
+            # PredictRMSE.append(RMSE2)
+            # # --------------------------------------------------------------------------
+        Intercepts = np.array(Intercepts)
+        idx = np.argmax(Intercepts)
+        SN_Index = Indices[idx]
+        if SN_Index >= len(X):
+            SN_Index = len(X) - 1
+        # Fine tune the SN number (search over the 500 points before and after this point).
+        Intercepts, Indices = [], []
+        for idx in range(SN_Index - 500, SN_Index + 500): 
+            if idx > len(X) - 2:
+                break
+            Xi, Yi = X[idx - int(Step / 2):idx + int(Step / 2)], Y[idx - int(Step / 2):idx + int(Step / 2)]
+            Coeff = np.polyfit(Xi, Yi, 1)
+            Intercepts.append(Coeff[1])
+            Indices.append(idx)
+        Intercepts = np.array(Intercepts)
+        idx = np.argmax(Intercepts)
+        SN_Index = Indices[idx]
+        if SN_Index >= len(X):
+            SN_Index = len(X) - 1
+        SN_estimated = X[SN_Index]
     # ------------------------------------------------------------------------------------------------------------------
     # For the power model to the creep phase of the results. 
-    Xi, Yi = X[:SN_Index], Y[:SN_Index]
-    idx1 = int(len(Xi) / 3)
-    idx2 = int(len(Xi) * 3 / 4)
-    x1, y1 = Xi[idx1], Yi[idx1]
-    x2, y2 = Xi[idx2], Yi[idx2]
-    b = np.log(y1 / y2) / np.log(x1 / x2)
-    a = np.exp(np.log(y1) - b * np.log(x1))
-    Coeff, _ = curve_fit(ModelPower, Xi, Yi, p0=[a, b])     # Perform the curve fitting. 
+    Xi = X[X <= SN_estimated]
+    Yi = Y[X <= SN_estimated]
+    a, b = Fit_Power_Model(Xi, Yi)
+    Coeff = [a, b]
+    # Xi, Yi = X[:SN_Index], Y[:SN_Index]
+    # idx1 = int(len(Xi) / 3)
+    # idx2 = int(len(Xi) * 3 / 4)
+    # x1, y1 = Xi[idx1], Yi[idx1]
+    # x2, y2 = Xi[idx2], Yi[idx2]
+    # b = np.log(y1 / y2) / np.log(x1 / x2)
+    # a = np.exp(np.log(y1) - b * np.log(x1))
+    # Coeff, _ = curve_fit(ModelPower, Xi, Yi, p0=[a, b])     # Perform the curve fitting. 
     # Using the fitted model, calculate the rutting at Pass = 10,000 and 20,000. 
     Rut10k = ModelPower(10000, Coeff[0], Coeff[1])
     Rut20k = ModelPower(20000, Coeff[0], Coeff[1])
@@ -244,6 +285,111 @@ def HWTT_Analysis_2PP(X, Y):
         'SIP_Adj'                       : SIPAdj,
         'SIP_Adj_Yval_mm'               : SIPAdj_Yval,
         'Stripping_Number'              : SN_estimated,
+        'CreepLine'                     : CreepLine,
+        'TangentLine'                   : TangLine,
+        'TangentLine_Adj'               : TangLineAdj,
+        'Xmodel'                        : XX,
+        'Ymodel'                        : YY,
+    }
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def HWTT_Analysis_Francken(X, Y, SN_est): 
+    """
+    This is the main function to fit the Francken model which was proposed by Yin et al. (2025) in the Minnesota DOT 
+    reportto on standardization of the SIP calculation methods. Please refer to the following reference for more 
+    details: 
+    "Yin, F., Chen, C. & Li, Q. (2025). Standardization of SIP Calculation for Hamburg Wheel Tracking Test. Minnesota 
+    DOT, Final Report, https://mdl.mndot.gov/items/nrra202603nrra202603"
+
+    :param X: An array of the number of passes (should not include NaN values). 
+    :param Y: An array of the rut depths (should not include NaN values). 
+    :param SN_est: Estimated Stripping Number (SN). 
+    """
+    # If the spacing between the datapoints is more than 5, use cubic spline interpolation to distribute the data. 
+    AvgSpacing = (X.max() - X.min()) / len(X)
+    if AvgSpacing > 5:
+        XX = np.arange(0, int(X.max()) + 1, 1)
+        CSFunc = CubicSpline(X, Y)
+        YY = CSFunc(XX)
+        X = XX.copy()
+        Y = YY.copy()
+    # ------------------------------------------------------------------------------------------------------------------
+    # First extract the maximum number of passes and its corresponding rut depth. 
+    MaxRut = Y[-1]
+    MaxPass= X[-1]
+    # ------------------------------------------------------------------------------------------------------------------
+    # To fit the Francken model, first fit a power model to datapoints before estimated SN. 
+    Indx = np.where(X <= SN_est)[0]
+    Xi = X[Indx]
+    Yi = Y[Indx]
+    A, B = Fit_Power_Model(Xi, Yi)
+    # Start fitting the Francken model. 
+    try:
+        InitialGuess = [A, B, 0.1, 0.001]
+        popt, pcov = curve_fit(Francken_Model, X, Y, p0=InitialGuess, 
+                                bounds=([0, 0, 0, 0], [2, 2, 3, 1]))
+    except:
+        InitialGuess = [A, B, 0, 0]
+        popt, pcov = curve_fit(Francken_Model, X, Y, p0=InitialGuess,
+                                bounds=([0, 0, 0, 0], [2, 2, 3, 1]))
+    A, B, C, D = popt
+    # ------------------------------------------------------------------------------------------------------------------
+    # Extract the model parameters. 
+    # Using the fitted model, calculate the rutting at Pass = 10,000 and 20,000. 
+    Rut10k = ModelPower(10000, A, B)
+    Rut20k = ModelPower(20000, A, B)
+    # Rutting due to the stripping. 
+    idx = np.argmax(Y[-10:])
+    StripRutX = X[-10:][idx]
+    StripRut = Y[-10:].max() - ModelPower(StripRutX, A, B)
+    if StripRut < 0: 
+        StripRut = 0
+    # Calculating the SN and SIP. 
+    SlopeFrancken = Derivative_Francken_Model(X, A, B, C, D)
+    SN = X[np.argmin(SlopeFrancken)]                # Estimated SN based on fitted Francken model. 
+    CreepSlope = Derivative_Francken_Model(SN, A, B, C, D)
+    TangentSlope = Derivative_Francken_Model(X.max(), A, B, C, D)
+    CreepLine = [CreepSlope, Francken_Model(SN, A, B, C, D) - SN * CreepSlope]
+    TangLine = [TangentSlope, Francken_Model(X.max(), A, B, C, D) - X.max() * TangentSlope]
+    SIP = (TangLine[1] - CreepLine[1]) / (CreepLine[0] - TangLine[0])
+    SIP_Yval = CreepLine[0] * SIP + CreepLine[1]
+    # Calculate the Adjusted SIP. 
+    try:
+        Nat125 = newton(lambda N, A, B, C, D: Francken_Model(N, A, B, C, D) - 12.5, x0=SN, 
+                        fprime=Derivative_Francken_Model, args=(A, B, C, D), maxiter=1000)
+    except:
+        if Francken_Model(100000, A, B, C, D) < 12.5:
+            Nat125 = 100000
+        else:
+            Xrange = np.arange(0, 100000, 100)
+            Yrange = Francken_Model(Xrange, A, B, C, D)
+            Nat125 = Xrange[np.argmin(np.abs(Yrange - 12.5))]
+    TangentSlope2 = Derivative_Francken_Model(Nat125, A, B, C, D)
+    TangLineAdj = [TangentSlope2, Francken_Model(Nat125, A, B, C, D) - Nat125 * TangentSlope2]
+    SIPAdj = (TangLineAdj[1] - CreepLine[1]) / (CreepLine[0] - TangLineAdj[0])
+    SIPAdj_Yval = CreepLine[0] * SIPAdj + CreepLine[1]
+    # ------------------------------------------------------------------------------------------------------------------
+    # Constructing the final model. 
+    XX  = np.linspace(0, X.max(), num=20001)
+    YY  = Francken_Model(XX, A, B, C, D)
+    # ------------------------------------------------------------------------------------------------------------------
+    # Return the results. 
+    return {
+        'Maximum_Rutting_mm'            : MaxRut,
+        'Maximum_Passes'                : MaxPass,
+        'Rutting@10k_mm'                : Rut10k,
+        'Rutting@20k_mm'                : Rut20k,
+        'Rutting_Francken_Coeff'        : [A, B, C, D],
+        'Stripping_Rutting_mm'          : StripRut,
+        'Stripping_Rutting_Pass'        : StripRutX,
+        'SIP'                           : SIP,
+        'SIP_Yval_mm'                   : SIP_Yval,
+        'SIP_Adj'                       : SIPAdj,
+        'SIP_Adj_Yval_mm'               : SIPAdj_Yval,
+        'Stripping_Number'              : SN,
         'CreepLine'                     : CreepLine,
         'TangentLine'                   : TangLine,
         'TangentLine_Adj'               : TangLineAdj,
@@ -540,3 +686,133 @@ def StripModel(x, EpsST0, Theta, SN):
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================
+
+
+def Francken_Model(N, A, B, C, D):
+    """
+    This function defines the Francken model, mentioned as method G in the MinnDOT final report. 
+
+    Args:
+        N (np.ndarray): An array of number of loading passes. 
+        A (float): Model coefficient. 
+        B (float): Model coefficient. 
+        C (float): Model coefficient. 
+        D (float): Model coefficient. 
+
+    Returns:
+        np.ndarray: An array of the predicted rut depth at the given number of loading passes. 
+    """
+    return A * np.power(N, B) + C * (np.exp(D * N) - 1)
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def Derivative_Francken_Model(N, A, B, C, D):
+    """
+    This function calculates the slope of the Francken model at given loading pass. 
+
+    Args:
+        N (np.ndarray): An array of number of loading passes. 
+        A (float): Model coefficient. 
+        B (float): Model coefficient. 
+        C (float): Model coefficient. 
+        D (float): Model coefficient. 
+
+    Returns:
+        _type_: _description_
+    """
+    return A * B * N ** (B - 1) + C * D * np.exp(D * N)
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def Fit_Power_Model(Xi, Yi):
+    """
+    This function simply fits a power model the data. 
+
+    Args:
+        Xi (np.ndarray): An array of loading passes. 
+        Yi (np.ndarray): An array of the rut depths (mm). 
+
+    Returns:
+        tuple of floats: Coefficients of the fitted model. 
+    """
+    # Remove the "0" from the data.
+    Indx = np.where((Xi > 0) & (Yi > 0))[0]
+    # Initial fit for the power model. 
+    coeff = np.polyfit(np.log(Xi[Indx]), np.log(Yi[Indx]), 1)
+    # Actual fit for the power model. 
+    coeff, _ = curve_fit(ModelPower, Xi, Yi, p0=[np.exp(coeff[1]), coeff[0]])
+    # Return the results.
+    return coeff
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def Estimate_SN(X, Y):
+    """
+    This function tries to estimate the "Stripping Number" (SN) based on a simplified algorithm to reduce the model's 
+    computation cost. The algorithm includes the following steps:
+        
+        1. Unifying the loading passes with which the optimization algorithm fits to the whole curve. 
+        2. Fit a polynomial of different degrees (3 to 8) to the rutting curve and use their first inflection point as 
+            an estimate of the SN. 
+        3. For each polynomial, fit a power model to the datapoints before the inflection point and calculate the 
+            fitting error parameters of Mean Absolute Error (MAE) and Root Mean Squared Error (RMSE).
+        4. Find the corresponding SN values which minimize the MAE/SN and RMSE/SN. Report the SN as the average SN 
+            value from these two indices. (Note that the MAE and RMSE were divided by SN as weight function to 
+            prioritise higher SN).
+
+    Args:
+        X (np.ndarray): An array of loading passes. 
+        Y (np.ndarray): An array of the rut depths (mm). 
+
+    Returns:
+        int: Estimated Stripping Number. 
+    """
+    # First, unifying the loading passes. 
+    XX = np.arange(X.min(), X.max())
+    YY = np.interp(XX, X, Y)
+    # Find the SN using the polynomials of different orders. 
+    Orders = [3, 4, 5, 6, 7, 8]
+    SN = np.ones(len(Orders)) * XX.max()
+    for i, order in enumerate(Orders):
+        coeff = np.polyfit(XX, YY, order)
+        poly = np.polynomial.Polynomial(coeff[::-1])
+        poly_deriv2 = poly.deriv(2)
+        roots = poly_deriv2.roots()
+        roots = roots[np.isreal(roots)].real
+        roots = roots[roots > 0]
+        if len(roots) > 0:
+            SN[i] = roots[0]
+    # Now optimize the SN by fitting a power model and calculating.
+    SN = list(np.linspace(SN.min(), SN.max(), 10)) + list(SN)
+    SN = np.array(SN)
+    MAE = np.ones(len(SN)) * 1000
+    RMSE = MAE.copy()
+    for i, sn in enumerate(SN):
+        # Specify the data.
+        Indx = np.where(XX < sn)
+        Xi = XX[Indx]
+        Yi = YY[Indx]
+        # Fit a power model. 
+        a, b = Fit_Power_Model(Xi, Yi)
+        # Calculate the error indices. 
+        Yip = a * (Xi ** b)
+        MAE[i] = np.abs(Yi - Yip).sum() / len(Xi)
+        RMSE[i] = np.sqrt(np.sum((Yi - Yip) ** 2) / len(Xi))
+    # Fit a 2nd degree polynomial to the MAE/SN and RMSE/SN functions. 
+    SNrange = np.arange(int(SN.min()), int(SN.max()) + 1)
+    MAE_SN_range = np.polyval(np.polyfit(SN, MAE / SN, 5), SNrange)
+    RMSE_SN_range = np.polyval(np.polyfit(SN, RMSE / SN, 5), SNrange)
+    SN_MAE = SNrange[np.argmin(MAE_SN_range)]
+    SN_RMSE = SNrange[np.argmin(RMSE_SN_range)]
+    # Use the average value and report as SN. 
+    return int(0.5 * (SN_MAE + SN_RMSE))
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+

@@ -22,10 +22,11 @@ from PyQt5.QtCore import Qt, QRegExp
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PIL import Image
+from scipy.optimize import fsolve
 from scripts.Alg01_UtilityFunctions import Read_HWTT_Text_File, Read_HWTT_Excel_File, Array_to_Binary, \
     ScrollableMessageBox, ResourcePath
 from scripts.Alg02_SQL_Manager import Append_to_Database
-from scripts.Alg03_HWTT_Analysis_Functions import HWTT_Analysis, ModelPower, TsengLyttonModel, YinModel
+from scripts.Alg03_HWTT_Analysis_Functions import HWTT_Analysis, ModelPower, TsengLyttonModel, YinModel, Francken_Model
 from scripts.GUI03_ReviewPage import DB_ReviewPage
 
 
@@ -198,7 +199,7 @@ class MainPage(QMainWindow):
         # First, ask for the spacing of datapoints. 
         ST02_Label01 = QLabel(f'{"Raw Datapoint Spacing:".ljust(70)}')
         self.SpinBox_RawDataSpacing = QSpinBox()
-        self.SpinBox_RawDataSpacing.setRange(2, 200)
+        self.SpinBox_RawDataSpacing.setRange(1, 200)
         self.SpinBox_RawDataSpacing.setValue(40)
         SectT02_FormLayout.addRow(ST02_Label01, self.SpinBox_RawDataSpacing)
         # Add spingboxes for the valid pass values.
@@ -219,6 +220,11 @@ class MainPage(QMainWindow):
         self.CheckBox_OffsetFirstRawData.setChecked(True)
         self.CheckBox_OffsetFirstRawData.setEnabled(False)
         SectT02_FormLayout.addRow(self.CheckBox_OffsetFirstRawData)
+        # Add a checkbox for Using estimated SN value in 2PP modeling. 
+        self.CheckBox_GuideSNin2PP = QCheckBox(f'Guide 2PP model with SN estimation algorithm')
+        self.CheckBox_GuideSNin2PP.setChecked(True)
+        self.CheckBox_GuideSNin2PP.setEnabled(False)
+        SectT02_FormLayout.addRow(self.CheckBox_GuideSNin2PP)
         # Create a separator. 
         SectT02_Separator = QFrame()
         SectT02_Separator.setFrameShape(QFrame.HLine)
@@ -235,6 +241,9 @@ class MainPage(QMainWindow):
         self.PlotModel_2PP = QRadioButton("Two-Part Power (2PP) Model")
         self.PlotModel_2PP.setEnabled(False)
         self.PlotModel_2PP.clicked.connect(lambda: self.Function_Plot_Model_RadioButton('2PP'))
+        self.PlotModel_Fnk = QRadioButton("Francken Model")
+        self.PlotModel_Fnk.setEnabled(False)
+        self.PlotModel_Fnk.clicked.connect(lambda: self.Function_Plot_Model_RadioButton('Fnk'))
         self.PlotModel_Yin = QRadioButton("Yin et al. (2014) Model")
         self.PlotModel_Yin.setEnabled(False)
         self.PlotModel_Yin.clicked.connect(lambda: self.Function_Plot_Model_RadioButton('Yin'))
@@ -244,11 +253,13 @@ class MainPage(QMainWindow):
         self.PlotModel_2PP.setChecked(True)
         self.Results['Plot_Current_Model'] = '2PP'
         self.PlotModel_ButtonGroup.addButton(self.PlotModel_2PP)
+        self.PlotModel_ButtonGroup.addButton(self.PlotModel_Fnk)
         self.PlotModel_ButtonGroup.addButton(self.PlotModel_Yin)
         self.PlotModel_ButtonGroup.addButton(self.PlotModel_6deg)
         # Add the widgets to the layout. 
         SectT02_FormLayout_Left.addRow(self.PlotModel_Label)
         SectT02_FormLayout_Left.addRow(self.PlotModel_2PP)
+        SectT02_FormLayout_Left.addRow(self.PlotModel_Fnk)
         SectT02_FormLayout_Left.addRow(self.PlotModel_Yin)
         SectT02_FormLayout_Left.addRow(self.PlotModel_6deg)
         SectT02_HLayout.addLayout(SectT02_FormLayout_Left)
@@ -422,7 +433,7 @@ class MainPage(QMainWindow):
         self.ST03T1_LineEdit_BNumber = QLineEdit()                          # For B-number.
         self.ST03T1_LineEdit_BNumber.setPlaceholderText("Enter Only 4 or 5-digit B-number ...")
         self.ST03T1_LineEdit_BNumber.setReadOnly(False)
-        IntValidator = QIntValidator(1000, 99999)
+        IntValidator = QIntValidator(1000, 999999999)
         self.ST03T1_LineEdit_BNumber.setValidator(IntValidator)
         self.ST03T1_LineEdit_LaneNumber = QLineEdit()                       # For Lane number. 
         self.ST03T1_LineEdit_LaneNumber.setPlaceholderText("Enter Only Lane Number (1-11) ...")
@@ -655,10 +666,74 @@ class MainPage(QMainWindow):
         # ScrollAreaT03T5_Layout.addWidget()
         Tab5_Layout.addWidget(ScrollAreaT03T5)
         # --------------------------------------------
+        # Tab 6: Analysis results (Francken model). 
+        Tab6 = QWidget()
+        Tab6_Layout = QVBoxLayout(Tab6)
+        # Create a Scroll Area
+        ScrollAreaT03T6 = QScrollArea()
+        ScrollAreaT03T6.setWidgetResizable(True)
+        ScrollContent6 = QWidget()
+        ScrollAreaT03T6.setWidget(ScrollContent6)
+        ScrollAreaT03T6_Layout = QVBoxLayout(ScrollContent6)
+        self.AnalysisParam_Label_Fnk = QLabel('For the <a href="Model_Fnk">Francken</a> Model.')
+        self.AnalysisParam_Label_Fnk.setOpenExternalLinks(False)
+        self.AnalysisParam_Label_Fnk.linkActivated.connect(self.Function_Show_Model_Properties)
+        ScrollAreaT03T6_Layout.addWidget(self.AnalysisParam_Label_Fnk)
+        ScrollAreaT03T6_Layout.addWidget(QLabel('Analysis results:'))
+        self.AnalysisParam_Fnk_Table = QTableWidget(16, 3)
+        self.AnalysisParam_Fnk_Table.setColumnWidth(0, 170) 
+        self.AnalysisParam_Fnk_Table.setColumnWidth(1, 70) 
+        self.AnalysisParam_Fnk_Table.setColumnWidth(2, 150) 
+        self.AnalysisParam_Fnk_Table.setMinimumHeight(518)
+        self.AnalysisParam_Fnk_Table.setHorizontalHeaderLabels(["Parameter", "Value", "Comment"])
+        for i, (parameter, comment) in enumerate(zip(
+            ['Max Rut Depth (mm)', 'Max Passes', 'Rutting @ 10,000 (mm)', 'Rutting @ 20,000 (mm)', 
+             'Stripping Rut Depth (mm)', 'Stripping Number (SN)',
+             'Stripping Inflection Point (SIP)', 'SIP Y-value (mm)', 
+             'Adjusted SIP (12.5 mm Threshold)', 'Adjusted SIP Y-value (mm)',  
+             'Creep Line Slope', 'Creep Line Intercept (mm)', 
+             'Stripping Line slope', 'Stripping Line Intercept (mm)', 
+             'Adjusted Stripping Line Slope', 'Adjusted Stripping Line Intercept (mm)', ], 
+            ['Ruttting+Stripping', '', 'Rutting Only', 'Rutting Only', 
+             'Stripping only', 'Boudary point', '-', '-', '-', '-', 
+             'Tang. line to creep phase', 'Tang. line to creep phase', 
+             'Tang. line to strip. phase', 'Tang. line to strip. phase', 
+             'Tang. line to strip. phase (Adjusted)', 'Tang. line to strip. phase (Adjusted)'])):
+            self.AnalysisParam_Fnk_Table.setItem(i, 0, QTableWidgetItem(parameter))
+            self.AnalysisParam_Fnk_Table.setItem(i, 1, QTableWidgetItem('Ν/Α'))
+            self.AnalysisParam_Fnk_Table.setItem(i, 2, QTableWidgetItem(comment))
+        self.AnalysisParam_Fnk_Table.setEditTriggers(QTableWidget.NoEditTriggers)          # Make Table Read-Only
+        self.AnalysisParam_Fnk_Table.setSelectionBehavior(QTableWidget.SelectItems)        # Select individual items
+        self.AnalysisParam_Fnk_Table.setSelectionMode(QTableWidget.ContiguousSelection)    # Allow selecting multiple cells
+        self.AnalysisParam_Fnk_Table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)     # Don't allow vertical scroll
+        ScrollAreaT03T6_Layout.addWidget(self.AnalysisParam_Fnk_Table)
+        ScrollAreaT03T6_Layout.addWidget(QLabel('Fitted model coefficients:'))
+        self.ModelParam_Fnk_Table = QTableWidget(4, 3)
+        self.ModelParam_Fnk_Table.setColumnWidth(0, 70) 
+        self.ModelParam_Fnk_Table.setColumnWidth(1, 170) 
+        self.ModelParam_Fnk_Table.setColumnWidth(2, 150) 
+        self.ModelParam_Fnk_Table.setMinimumHeight(170)
+        self.ModelParam_Fnk_Table.setHorizontalHeaderLabels(["Parameter", "Value", "Comment"])
+        for i, (parameter, comment) in enumerate(zip(
+            ['A', 'B', 'C', 'D'], 
+            ['Polynomial Coefficients', 'Polynomial Coefficients', 
+             'Polynomial Coefficients', 'Polynomial Coefficients'])):
+            self.ModelParam_Fnk_Table.setItem(i, 0, QTableWidgetItem(parameter))
+            self.ModelParam_Fnk_Table.setItem(i, 1, QTableWidgetItem('Ν/Α'))
+            self.ModelParam_Fnk_Table.setItem(i, 2, QTableWidgetItem(comment))
+        self.ModelParam_Fnk_Table.setEditTriggers(QTableWidget.NoEditTriggers)          # Make Table Read-Only
+        self.ModelParam_Fnk_Table.setSelectionBehavior(QTableWidget.SelectItems)        # Select individual items
+        self.ModelParam_Fnk_Table.setSelectionMode(QTableWidget.ContiguousSelection)    # Allow selecting multiple cells
+        self.ModelParam_Fnk_Table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)     # Don't allow vertical scroll
+        ScrollAreaT03T6_Layout.addWidget(self.ModelParam_Fnk_Table)
+        # ScrollAreaT03T6_Layout.addWidget()
+        Tab6_Layout.addWidget(ScrollAreaT03T6)
+        # --------------------------------------------
         # Add tabs to QTabWidget
         self.SectT03_TabWidget.addTab(Tab1, "General")
         self.SectT03_TabWidget.addTab(Tab2, "Fitted Model (2PP)")
         self.SectT03_TabWidget.addTab(Tab3, "Analysis Params (2PP)")
+        self.SectT03_TabWidget.addTab(Tab6, "Analysis Params (Francken)")
         self.SectT03_TabWidget.addTab(Tab4, "Analysis Params (Yin et al. Model)")
         self.SectT03_TabWidget.addTab(Tab5, "Analysis Params (6th deg. Polynomial)")
         SectT03_Layout.addWidget(self.SectT03_TabWidget)
@@ -683,7 +758,9 @@ class MainPage(QMainWindow):
         self.axes.set_ylabel('Rut depth (mm)', fontsize=10, fontweight='bold', color='k')
         self.axes.grid(which='both', color='gray', alpha=0.1)
         self.axes.set_xlim([0, 20000])
-        self.axes.set_xticklabels([f'{num:,.0f}' for num in self.axes.get_xticks()])
+        Xticks = self.axes.get_xticks()
+        self.axes.set_xticks(Xticks)
+        self.axes.set_xticklabels([f'{num:,.0f}' for num in Xticks])
         self.axes.set_ylim([0, 10])
         self.fig.set_constrained_layout(True)
         self.canvas.draw()
@@ -868,11 +945,13 @@ class MainPage(QMainWindow):
         This function reset the current analysis (visuals) and replot the raw data. 
         """
         # Turn off the Accept/Fail buttons. 
+        self.CheckBox_GuideSNin2PP.setEnabled(True)
         self.Button_RunAnalysis.setEnabled(True)
         self.Button_FailResult.setEnabled(True)
         self.Button_AcceptResult.setEnabled(False)
         self.PlotModel_Label.setEnabled(False)
         self.PlotModel_2PP.setEnabled(False)
+        self.PlotModel_Fnk.setEnabled(False)
         self.PlotModel_Yin.setEnabled(False)
         self.PlotModel_6deg.setEnabled(False)
         self.SIPAdjusted_Label.setEnabled(False)
@@ -922,7 +1001,7 @@ class MainPage(QMainWindow):
         if self.Results['Plot_Level'] == 0: 
             if Passes.max() <= 20000:
                 self.axes.set_xlim([0, 20000])
-            self.axes.set_ylim([0, RutDepth.max() * 1.05])
+            self.axes.set_ylim([min([0, RutDepth.min()]), RutDepth.max() * 1.05])
             self.axes.legend(fontsize=12, loc='upper left', fancybox=True)
         # ------------------------------------------
         # Plotting the raw data and selected model. 
@@ -952,6 +1031,23 @@ class MainPage(QMainWindow):
                     self.axes.set_xlim([0, 20000])
                 self.axes.set_ylim([0, RutDepth.max() * 1.05])
             # ------------------------------------------------
+            elif self.Results['Plot_Current_Model'] == 'Fnk':
+                self.axes.plot(self.Results['Fnk']['Xmodel'], self.Results['Fnk']['Ymodel'], 
+                               ls='--', lw=1.5, color='b', label='Francken model')
+                self.axes.plot([0, 20000], np.polyval(self.Results['Fnk']['CreepLine'], [0, 20000]), 
+                               ls='--', color='r', lw=0.5)
+                self.axes.plot([0, 20000], np.polyval(self.Results['Fnk']['TangentLine'], [0, 20000]), 
+                               ls='--', color='r', lw=0.5)
+                self.axes.plot(self.Results['Fnk']['Stripping_Number'], 
+                               np.polyval(self.Results['Fnk']['CreepLine'], self.Results['Fnk']['Stripping_Number']), 
+                               ls='', marker='*', ms=12, color='b', label='Stripping Number')
+                self.axes.plot(self.Results['Fnk']['SIP'], self.Results['Fnk']['SIP_Yval_mm'], 
+                               ls='', marker='X', ms=12, color='m', label='SIP point (End point at max rutting)')
+                self.axes.legend()
+                if Passes.max() <= 20000:
+                    self.axes.set_xlim([0, 20000])
+                self.axes.set_ylim([0, max([RutDepth.max(), self.Results['Fnk']['Ymodel'].max()]) * 1.05])
+            # ------------------------------------------------
             elif self.Results['Plot_Current_Model'] == 'Yin':
                 self.axes.plot(self.Results['Yin']['Xmodel'], self.Results['Yin']['Ymodel'], 
                                ls='--', lw=1.5, color='b', label='Yin et al. model (Step 1)')
@@ -977,7 +1073,7 @@ class MainPage(QMainWindow):
                 self.axes.legend()
                 if Passes.max() <= 20000:
                     self.axes.set_xlim([0, 20000])
-                self.axes.set_ylim([0, max([RutDepth.max(), self.Results['6deg']['Ymodel'].max()]) * 1.05])
+                self.axes.set_ylim([0, max([RutDepth.max(), self.Results['Yin']['Ymodel'].max()]) * 1.05])
             # ------------------------------------------------
             elif self.Results['Plot_Current_Model'] == '6deg':
                 self.axes.plot(self.Results['6deg']['Xmodel'], self.Results['6deg']['Ymodel'], 
@@ -1034,6 +1130,32 @@ class MainPage(QMainWindow):
                         self.axes.set_xlim([0, Xmax])
                     self.axes.set_ylim([0, max([RutDepth.max(), YY.max(), 12.5]) * 1.05])
             # ------------------------------------------------
+            elif self.Results['Plot_Current_Model'] == 'Fnk':
+                A, B, C, D = self.Results['Fnk']['Rutting_Francken_Coeff']
+                X_Threshold = fsolve(lambda x: Francken_Model(x, A, B, C, D) - 12.5, x0=20000)
+                if type(X_Threshold) == np.ndarray:
+                    X_Threshold = X_Threshold[0]
+                Xmax = (int(X_Threshold * 1.05 / 1000) + 1) * 1000
+                XX = np.linspace(0, Xmax, num=20001)
+                YY = Francken_Model(XX, A, B, C, D)
+                self.axes.plot(XX, YY, ls='--', lw=1.5, color='b', label='Francken model')
+                self.axes.plot([0, Xmax], np.polyval(self.Results['Fnk']['CreepLine'], [0, Xmax]), 
+                               ls='--', color='r', lw=0.5)
+                self.axes.plot([0, Xmax], np.polyval(self.Results['Fnk']['TangentLine_Adj'], [0, Xmax]), 
+                               ls='--', color='r', lw=0.5)
+                self.axes.plot(self.Results['Fnk']['Stripping_Number'], 
+                               np.polyval(self.Results['Fnk']['CreepLine'], self.Results['Fnk']['Stripping_Number']), 
+                               ls='', marker='*', ms=12, color='b', label='Stripping Number')
+                self.axes.plot(self.Results['Fnk']['SIP_Adj'], self.Results['Fnk']['SIP_Adj_Yval_mm'], 
+                               ls='', marker='X', ms=12, color='m', label='SIP point (End point at 12.5 mm)')
+                self.axes.plot([0, X_Threshold], [12.5, 12.5], ls=':', lw=0.5, color='k', label='12.5 mm threshold')
+                self.axes.legend(loc='upper left')
+                if Xmax <= 20000:
+                    self.axes.set_xlim([0, 20000])
+                if Xmax > 20000:
+                    self.axes.set_xlim([0, Xmax])
+                self.axes.set_ylim([0, max([RutDepth.max(), YY.max(), 12.5]) * 1.05])
+            # ------------------------------------------------
             elif self.Results['Plot_Current_Model'] == 'Yin':
                 Step1Coeff = self.Results['Yin']['Rutting_Step1_Coeff']
                 X_Threshold = Step1Coeff[1] / np.exp((12.5 / Step1Coeff[0]) ** (-Step1Coeff[2]))
@@ -1081,7 +1203,9 @@ class MainPage(QMainWindow):
                 if Passes.max() <= 20000:
                     self.axes.set_xlim([0, 20000])
                 self.axes.set_ylim([0, max([RutDepth.max(), self.Results['6deg']['Ymodel'].max()]) * 1.05])
-        self.axes.set_xticklabels([f'{num:,.0f}' for num in self.axes.get_xticks()])
+        Xticks = self.axes.get_xticks()
+        self.axes.set_xticks(Xticks)
+        self.axes.set_xticklabels([f'{num:,.0f}' for num in Xticks])
         self.fig.set_constrained_layout(True)
         self.canvas.draw()
     # ------------------------------------------------------------------------------------------------------------------
@@ -1113,6 +1237,31 @@ class MainPage(QMainWindow):
             self.AnalysisParam_Table.setItem(i, 0, QTableWidgetItem(parameter))
             self.AnalysisParam_Table.setItem(i, 1, QTableWidgetItem('Ν/Α'))
             self.AnalysisParam_Table.setItem(i, 2, QTableWidgetItem(comment))
+        # ---------------------------------------
+        # Clear the results (Francken model).
+        for i, (parameter, comment) in enumerate(zip(
+            ['Max Rut Depth (mm)', 'Max Passes', 'Rutting @ 10,000 (mm)', 'Rutting @ 20,000 (mm)', 
+             'Stripping Rut Depth (mm)', 'Stripping Number (SN)',
+             'Stripping Inflection Point (SIP)', 'SIP Y-value (mm)', 
+             'Adjusted SIP (12.5 mm Threshold)', 'Adjusted SIP Y-value (mm)',  
+             'Creep Line Slope', 'Creep Line Intercept (mm)', 
+             'Stripping Line slope', 'Stripping Line Intercept (mm)', 
+             'Adjusted Stripping Line Slope', 'Adjusted Stripping Line Intercept (mm)', ], 
+            ['Ruttting+Stripping', '', 'Rutting Only', 'Rutting Only', 
+             'Stripping only', 'Boudary point', '-', '-', '-', '-', 
+             'Tang. line to creep phase', 'Tang. line to creep phase', 
+             'Tang. line to strip. phase', 'Tang. line to strip. phase', 
+             'Tang. line to strip. phase (Adjusted)', 'Tang. line to strip. phase (Adjusted)'])):
+            self.AnalysisParam_Fnk_Table.setItem(i, 0, QTableWidgetItem(parameter))
+            self.AnalysisParam_Fnk_Table.setItem(i, 1, QTableWidgetItem('Ν/Α'))
+            self.AnalysisParam_Fnk_Table.setItem(i, 2, QTableWidgetItem(comment))
+        for i, (parameter, comment) in enumerate(zip(
+            ['A', 'B', 'C', 'D'], 
+            ['Polynomial Coefficients', 'Polynomial Coefficients', 
+             'Polynomial Coefficients', 'Polynomial Coefficients'])):
+            self.ModelParam_Fnk_Table.setItem(i, 0, QTableWidgetItem(parameter))
+            self.ModelParam_Fnk_Table.setItem(i, 1, QTableWidgetItem('Ν/Α'))
+            self.ModelParam_Fnk_Table.setItem(i, 2, QTableWidgetItem(comment))
         # ---------------------------------------
         # Clear the results (Yin et al. model).
         for i, (parameter, comment) in enumerate(zip(
@@ -1174,6 +1323,7 @@ class MainPage(QMainWindow):
         self.Button_AcceptResult.setEnabled(True)
         self.PlotModel_Label.setEnabled(True)
         self.PlotModel_2PP.setEnabled(True)
+        self.PlotModel_Fnk.setEnabled(True)
         self.PlotModel_Yin.setEnabled(True)
         self.PlotModel_6deg.setEnabled(True)
         self.SIPAdjusted_Label.setEnabled(True)
@@ -1196,7 +1346,10 @@ class MainPage(QMainWindow):
         Y = Y[Index].copy()
         # ----------------------------------------------------------------------------
         # Call the analysis function to fit the model and get the analysis parameters.
-        Res = HWTT_Analysis(X, Y)
+        if self.CheckBox_GuideSNin2PP.isChecked():
+            Res = HWTT_Analysis(X, Y, 1)
+        else:
+            Res = HWTT_Analysis(X, Y, 0)
         # Store the results. 
         self.Results.update(Res)
         # ----------------------------------------------------------------------------
@@ -1233,11 +1386,15 @@ class MainPage(QMainWindow):
         self.ST03T1_LineEdit_TargetTestTemp.setText(f'{float(self.Results["Props"]["Test_Temperature"]):.2f}')
         self.ST03T1_LineEdit_AvgTestTemp.setText(f"{self.Results['Temperatures'].mean():.2f}")
         self.ST03T1_LineEdit_StdTestTemp.setText(f"{self.Results['Temperatures'].std():.4f}")
-        self.ST03T1_LineEdit_BNumber.setText("")
         self.ST03T1_DropDown_LabAging.setCurrentIndex(0)
         self.ST03T1_LineEdit_OtherComments.setText("")
         self.ST03T1_DropDown_LiftLocation.setCurrentIndex(0)
         self.ST03T1_LineEdit_LaneNumber.setText("")
+        # For the B-number. 
+        if 'ID Number' in self.Results['Props'] and self.Results['Props']['ID Number'] != 0:
+            self.ST03T1_LineEdit_BNumber.setText(str(self.Results['Props']['ID Number']))
+        else:
+            self.ST03T1_LineEdit_BNumber.setText("")
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Update_Model_Fit_Analysis_Parameters(self):
         """
@@ -1246,114 +1403,158 @@ class MainPage(QMainWindow):
         # For the 2PP model. 
         # Fill for the first part power model. 
         self.ModelParam_Table.setItem(
-            0, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting_PowerModel_Coeff"][0]:.6f}'))
+            0, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting_PowerModel_Coeff"][0]:,.6f}'))
         self.ModelParam_Table.setItem(
-            1, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting_PowerModel_Coeff"][1]:.6f}'))
+            1, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting_PowerModel_Coeff"][1]:,.6f}'))
         # Fill the table for the Stripping number point (boundary point).
         self.ModelParam_Table.setItem(
-            2, 1, QTableWidgetItem(f'{self.Results["2PP"]["Stripping_Number"]:.2f}'))
+            2, 1, QTableWidgetItem(f'{self.Results["2PP"]["Stripping_Number"]:,.2f}'))
         # Fill the table for the second part power model. 
         self.ModelParam_Table.setItem(
             3, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting_PowerModel_Part2_Coeff"][0]:.6e}'))
         self.ModelParam_Table.setItem(
-            4, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting_PowerModel_Part2_Coeff"][1]:.6f}'))
+            4, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting_PowerModel_Part2_Coeff"][1]:,.6f}'))
         self.ModelParam_Table.setItem(
-            5, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting_PowerModel_Part2_Coeff"][2]:.4f}'))
+            5, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting_PowerModel_Part2_Coeff"][2]:,.4f}'))
         self.ModelParam_Table.setItem(
-            6, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting_PowerModel_Part2_Coeff"][3]:.6f}'))
+            6, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting_PowerModel_Part2_Coeff"][3]:,.6f}'))
         # Fill the analysis results. 
         self.AnalysisParam_Table.setItem(
-            0, 1, QTableWidgetItem(f'{self.Results["RutDepth"].max():.3f}'))
+            0, 1, QTableWidgetItem(f'{self.Results["RutDepth"].max():,.3f}'))
         self.AnalysisParam_Table.setItem(
-            1, 1, QTableWidgetItem(f'{self.Results["Passes"].max():d}'))
+            1, 1, QTableWidgetItem(f'{self.Results["Passes"].max():,d}'))
         self.AnalysisParam_Table.setItem(
-            2, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting@10k_mm"]:.3f}'))
+            2, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting@10k_mm"]:,.3f}'))
         self.AnalysisParam_Table.setItem(
-            3, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting@20k_mm"]:.3f}'))
+            3, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting@20k_mm"]:,.3f}'))
         self.AnalysisParam_Table.setItem(
-            4, 1, QTableWidgetItem(f'{self.Results["2PP"]["Stripping_Rutting_mm"]:.3f}'))
+            4, 1, QTableWidgetItem(f'{self.Results["2PP"]["Stripping_Rutting_mm"]:,.3f}'))
         self.AnalysisParam_Table.setItem(
-            5, 1, QTableWidgetItem(f'{self.Results["2PP"]["Stripping_Number"]:.2f}'))        
+            5, 1, QTableWidgetItem(f'{self.Results["2PP"]["Stripping_Number"]:,.2f}'))        
         self.AnalysisParam_Table.setItem(
-            6, 1, QTableWidgetItem(f'{self.Results["2PP"]["SIP"]:.2f}'))
+            6, 1, QTableWidgetItem(f'{self.Results["2PP"]["SIP"]:,.2f}'))
         self.AnalysisParam_Table.setItem(
-            7, 1, QTableWidgetItem(f'{self.Results["2PP"]["SIP_Yval_mm"]:.3f}'))
+            7, 1, QTableWidgetItem(f'{self.Results["2PP"]["SIP_Yval_mm"]:,.3f}'))
         self.AnalysisParam_Table.setItem(
-            8, 1, QTableWidgetItem(f'{self.Results["2PP"]["SIP_Adj"]:.2f}'))
+            8, 1, QTableWidgetItem(f'{self.Results["2PP"]["SIP_Adj"]:,.2f}'))
         self.AnalysisParam_Table.setItem(
-            9, 1, QTableWidgetItem(f'{self.Results["2PP"]["SIP_Adj_Yval_mm"]:.3f}'))
+            9, 1, QTableWidgetItem(f'{self.Results["2PP"]["SIP_Adj_Yval_mm"]:,.3f}'))
         self.AnalysisParam_Table.setItem(
             10, 1, QTableWidgetItem(f'{self.Results["2PP"]["CreepLine"][0]:.3e}'))
         self.AnalysisParam_Table.setItem(
-            11, 1, QTableWidgetItem(f'{self.Results["2PP"]["CreepLine"][1]:.2f}'))
+            11, 1, QTableWidgetItem(f'{self.Results["2PP"]["CreepLine"][1]:,.2f}'))
         self.AnalysisParam_Table.setItem(
             12, 1, QTableWidgetItem(f'{self.Results["2PP"]["TangentLine"][0]:.3e}'))
         self.AnalysisParam_Table.setItem(
-            13, 1, QTableWidgetItem(f'{self.Results["2PP"]["TangentLine"][0]:.2f}'))
+            13, 1, QTableWidgetItem(f'{self.Results["2PP"]["TangentLine"][0]:,.2f}'))
         self.AnalysisParam_Table.setItem(
             14, 1, QTableWidgetItem(f'{self.Results["2PP"]["TangentLine_Adj"][0]:.3e}'))
         self.AnalysisParam_Table.setItem(
-            15, 1, QTableWidgetItem(f'{self.Results["2PP"]["TangentLine_Adj"][0]:.2f}'))
+            15, 1, QTableWidgetItem(f'{self.Results["2PP"]["TangentLine_Adj"][0]:,.2f}'))
+        # ------------------------------------------------------------
+        # For the Francken model. 
+        # Model parameters. 
+        self.ModelParam_Fnk_Table.setItem(
+            0, 1, QTableWidgetItem(f'{self.Results["Fnk"]["Rutting_Francken_Coeff"][0]:.6e}'))
+        self.ModelParam_Fnk_Table.setItem(
+            1, 1, QTableWidgetItem(f'{self.Results["Fnk"]["Rutting_Francken_Coeff"][1]:.6e}'))
+        self.ModelParam_Fnk_Table.setItem(
+            2, 1, QTableWidgetItem(f'{self.Results["Fnk"]["Rutting_Francken_Coeff"][2]:.6e}'))
+        self.ModelParam_Fnk_Table.setItem(
+            3, 1, QTableWidgetItem(f'{self.Results["Fnk"]["Rutting_Francken_Coeff"][3]:.6e}'))
+        # Analysis parameters. 
+        self.AnalysisParam_Fnk_Table.setItem(
+            0, 1, QTableWidgetItem(f'{self.Results["Fnk"]["Maximum_Rutting_mm"]:,.3f}'))
+        self.AnalysisParam_Fnk_Table.setItem(
+            1, 1, QTableWidgetItem(f'{self.Results["Fnk"]["Maximum_Passes"]:,d}'))
+        self.AnalysisParam_Fnk_Table.setItem(
+            2, 1, QTableWidgetItem(f'{self.Results["Fnk"]["Rutting@10k_mm"]:,.3f}'))
+        self.AnalysisParam_Fnk_Table.setItem(
+            3, 1, QTableWidgetItem(f'{self.Results["Fnk"]["Rutting@20k_mm"]:,.3f}'))
+        self.AnalysisParam_Fnk_Table.setItem(
+            4, 1, QTableWidgetItem(f'{self.Results["Fnk"]["Stripping_Rutting_mm"]:.3f}'))
+        self.AnalysisParam_Fnk_Table.setItem(
+            5, 1, QTableWidgetItem(f'{self.Results["Fnk"]["Stripping_Number"]:,.2f}'))
+        self.AnalysisParam_Fnk_Table.setItem(
+            6, 1, QTableWidgetItem(f'{self.Results["Fnk"]["SIP"]:,.2f}'))
+        self.AnalysisParam_Fnk_Table.setItem(
+            7, 1, QTableWidgetItem(f'{self.Results["Fnk"]["SIP_Yval_mm"]:,.3f}'))
+        self.AnalysisParam_Fnk_Table.setItem(
+            8, 1, QTableWidgetItem(f'{self.Results["Fnk"]["SIP_Adj"]:,.2f}'))
+        self.AnalysisParam_Fnk_Table.setItem(
+            9, 1, QTableWidgetItem(f'{self.Results["Fnk"]["SIP_Adj_Yval_mm"]:,.3f}'))
+        self.AnalysisParam_Fnk_Table.setItem(
+            10, 1, QTableWidgetItem(f'{self.Results["Fnk"]["CreepLine"][0]:.3e}'))
+        self.AnalysisParam_Fnk_Table.setItem(
+            11, 1, QTableWidgetItem(f'{self.Results["Fnk"]["CreepLine"][1]:,.3f}'))
+        self.AnalysisParam_Fnk_Table.setItem(
+            12, 1, QTableWidgetItem(f'{self.Results["Fnk"]["TangentLine"][0]:.3e}'))
+        self.AnalysisParam_Fnk_Table.setItem(
+            13, 1, QTableWidgetItem(f'{self.Results["Fnk"]["TangentLine"][1]:,.3f}'))
+        self.AnalysisParam_Fnk_Table.setItem(
+            14, 1, QTableWidgetItem(f'{self.Results["Fnk"]["TangentLine_Adj"][0]:.3e}'))
+        self.AnalysisParam_Fnk_Table.setItem(
+            15, 1, QTableWidgetItem(f'{self.Results["Fnk"]["TangentLine_Adj"][1]:,.3f}'))
         # ------------------------------------------------------------
         # For the Yin model. 
         # Model parameters. 
         self.ModelParam_Yin_Table.setItem(
-            0, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step1_Coeff"][0]:.6f}'))
+            0, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step1_Coeff"][0]:,.6f}'))
         self.ModelParam_Yin_Table.setItem(
-            1, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step1_Coeff"][1]:.6f}'))
+            1, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step1_Coeff"][1]:,.6f}'))
         self.ModelParam_Yin_Table.setItem(
-            2, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step1_Coeff"][2]:.6f}'))
+            2, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step1_Coeff"][2]:,.6f}'))
         self.ModelParam_Yin_Table.setItem(
-            3, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step2_Coeff"][0]:.6f}'))
+            3, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step2_Coeff"][0]:,.6f}'))
         self.ModelParam_Yin_Table.setItem(
-            4, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step2_Coeff"][1]:.6f}'))
+            4, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step2_Coeff"][1]:,.6f}'))
         self.ModelParam_Yin_Table.setItem(
-            5, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step2_Coeff"][2]:.6f}'))
+            5, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step2_Coeff"][2]:,.6f}'))
         self.ModelParam_Yin_Table.setItem(
-            6, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step3_Coeff"][0]:.6f}'))
+            6, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step3_Coeff"][0]:,.6f}'))
         self.ModelParam_Yin_Table.setItem(
-            7, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step3_Coeff"][1]:.6f}'))
+            7, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step3_Coeff"][1]:,.6f}'))
         self.ModelParam_Yin_Table.setItem(
-            8, 1, QTableWidgetItem(f'{self.Results["Yin"]["Stripping_Number"]:.2f}'))
+            8, 1, QTableWidgetItem(f'{self.Results["Yin"]["Stripping_Number"]:,.2f}'))
         # Analysis parameters. 
         self.AnalysisParam_Yin_Table.setItem(
-            0, 1, QTableWidgetItem(f'{self.Results["Yin"]["Maximum_Rutting_mm"]:.3f}'))
+            0, 1, QTableWidgetItem(f'{self.Results["Yin"]["Maximum_Rutting_mm"]:,.3f}'))
         self.AnalysisParam_Yin_Table.setItem(
-            1, 1, QTableWidgetItem(f'{self.Results["Yin"]["Maximum_Passes"]:d}'))
+            1, 1, QTableWidgetItem(f'{self.Results["Yin"]["Maximum_Passes"]:,d}'))
         self.AnalysisParam_Yin_Table.setItem(
-            2, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting@10k_mm"]:.3f}'))
+            2, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting@10k_mm"]:,.3f}'))
         self.AnalysisParam_Yin_Table.setItem(
-            3, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting@20k_mm"]:.3f}'))
+            3, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting@20k_mm"]:,.3f}'))
         self.AnalysisParam_Yin_Table.setItem(
-            4, 1, QTableWidgetItem(f'{self.Results["Yin"]["LCSN"]:.2f}'))
+            4, 1, QTableWidgetItem(f'{self.Results["Yin"]["LCSN"]:,.2f}'))
         self.AnalysisParam_Yin_Table.setItem(
-            5, 1, QTableWidgetItem(f'{self.Results["Yin"]["LCST"]:.2f}'))
+            5, 1, QTableWidgetItem(f'{self.Results["Yin"]["LCST"]:,.2f}'))
         self.AnalysisParam_Yin_Table.setItem(
-            6, 1, QTableWidgetItem(f'{self.Results["Yin"]["DeltaEps@10k"]:.6f}'))
+            6, 1, QTableWidgetItem(f'{self.Results["Yin"]["DeltaEps@10k"]:,.6f}'))
         self.AnalysisParam_Yin_Table.setItem(
-            7, 1, QTableWidgetItem(f'{self.Results["Yin"]["Stripping_Rutting_mm"]:.3f}'))
+            7, 1, QTableWidgetItem(f'{self.Results["Yin"]["Stripping_Rutting_mm"]:,.3f}'))
         self.AnalysisParam_Yin_Table.setItem(
-            8, 1, QTableWidgetItem(f'{self.Results["Yin"]["Stripping_Number"]:.2f}'))
+            8, 1, QTableWidgetItem(f'{self.Results["Yin"]["Stripping_Number"]:,.2f}'))
         self.AnalysisParam_Yin_Table.setItem(
-            9, 1, QTableWidgetItem(f'{self.Results["Yin"]["SIP"]:.2f}'))
+            9, 1, QTableWidgetItem(f'{self.Results["Yin"]["SIP"]:,.2f}'))
         self.AnalysisParam_Yin_Table.setItem(
-            10, 1, QTableWidgetItem(f'{self.Results["Yin"]["SIP_Yval_mm"]:.3f}'))
+            10, 1, QTableWidgetItem(f'{self.Results["Yin"]["SIP_Yval_mm"]:,.3f}'))
         self.AnalysisParam_Yin_Table.setItem(
-            11, 1, QTableWidgetItem(f'{self.Results["Yin"]["SIP_Adj"]:.2f}'))
+            11, 1, QTableWidgetItem(f'{self.Results["Yin"]["SIP_Adj"]:,.2f}'))
         self.AnalysisParam_Yin_Table.setItem(
-            12, 1, QTableWidgetItem(f'{self.Results["Yin"]["SIP_Adj_Yval_mm"]:.3f}'))
+            12, 1, QTableWidgetItem(f'{self.Results["Yin"]["SIP_Adj_Yval_mm"]:,.3f}'))
         self.AnalysisParam_Yin_Table.setItem(
             13, 1, QTableWidgetItem(f'{self.Results["Yin"]["CreepLine"][0]:.3e}'))
         self.AnalysisParam_Yin_Table.setItem(
-            14, 1, QTableWidgetItem(f'{self.Results["Yin"]["CreepLine"][1]:.2f}'))
+            14, 1, QTableWidgetItem(f'{self.Results["Yin"]["CreepLine"][1]:,.2f}'))
         self.AnalysisParam_Yin_Table.setItem(
             15, 1, QTableWidgetItem(f'{self.Results["Yin"]["TangentLine"][0]:.3e}'))
         self.AnalysisParam_Yin_Table.setItem(
-            16, 1, QTableWidgetItem(f'{self.Results["Yin"]["TangentLine"][1]:.2f}'))
+            16, 1, QTableWidgetItem(f'{self.Results["Yin"]["TangentLine"][1]:,.2f}'))
         self.AnalysisParam_Yin_Table.setItem(
             17, 1, QTableWidgetItem(f'{self.Results["Yin"]["TangentLine_Adj"][0]:.3e}'))
         self.AnalysisParam_Yin_Table.setItem(
-            18, 1, QTableWidgetItem(f'{self.Results["Yin"]["TangentLine_Adj"][1]:.2f}'))
+            18, 1, QTableWidgetItem(f'{self.Results["Yin"]["TangentLine_Adj"][1]:,.2f}'))
         # ------------------------------------------------------------
         # For the 6th degree polynomial model. 
         # Model parameters. 
@@ -1373,21 +1574,21 @@ class MainPage(QMainWindow):
             6, 1, QTableWidgetItem(f'{self.Results["6deg"]["Rutting_6degPolynomial_Coeff"][6]:.3e}'))
         # Analysis parameters. 
         self.AnalysisParam_6deg_Table.setItem(
-            0, 1, QTableWidgetItem(f'{self.Results["6deg"]["Maximum_Rutting_mm"]:.3f}'))
+            0, 1, QTableWidgetItem(f'{self.Results["6deg"]["Maximum_Rutting_mm"]:,.3f}'))
         self.AnalysisParam_6deg_Table.setItem(
-            1, 1, QTableWidgetItem(f'{self.Results["6deg"]["Maximum_Passes"]:d}'))
+            1, 1, QTableWidgetItem(f'{self.Results["6deg"]["Maximum_Passes"]:,d}'))
         self.AnalysisParam_6deg_Table.setItem(
-            2, 1, QTableWidgetItem(f'{self.Results["6deg"]["Rutting@10k_mm"]:.3f}'))
+            2, 1, QTableWidgetItem(f'{self.Results["6deg"]["Rutting@10k_mm"]:,.3f}'))
         self.AnalysisParam_6deg_Table.setItem(
-            3, 1, QTableWidgetItem(f'{self.Results["6deg"]["Rutting@20k_mm"]:.3f}'))
+            3, 1, QTableWidgetItem(f'{self.Results["6deg"]["Rutting@20k_mm"]:,.3f}'))
         self.AnalysisParam_6deg_Table.setItem(
-            4, 1, QTableWidgetItem(f'{self.Results["6deg"]["Stripping_Rutting_mm"]:.3f}'))
+            4, 1, QTableWidgetItem(f'{self.Results["6deg"]["Stripping_Rutting_mm"]:,.3f}'))
         self.AnalysisParam_6deg_Table.setItem(
-            5, 1, QTableWidgetItem(f'{self.Results["6deg"]["Stripping_Number"]:.2f}'))
+            5, 1, QTableWidgetItem(f'{self.Results["6deg"]["Stripping_Number"]:,.2f}'))
         self.AnalysisParam_6deg_Table.setItem(
-            6, 1, QTableWidgetItem(f'{self.Results["6deg"]["CreepLine"][0]:.4f}'))
+            6, 1, QTableWidgetItem(f'{self.Results["6deg"]["CreepLine"][0]:,.4f}'))
         self.AnalysisParam_6deg_Table.setItem(
-            7, 1, QTableWidgetItem(f'{self.Results["6deg"]["CreepLine"][1]:.2f}'))
+            7, 1, QTableWidgetItem(f'{self.Results["6deg"]["CreepLine"][1]:,.2f}'))
         # Update the tab widget with the 2PP analysis results tab. 
         self.SectT03_TabWidget.setCurrentIndex(2)
     # ------------------------------------------------------------------------------------------------------------------
@@ -1538,9 +1739,13 @@ class MainPage(QMainWindow):
                                                                            self.Results['RutDepth'], 
                                                                            self.Results['Temperatures'])))
         # Append the data to the database. 
+        try: 
+            LaneNumber = int(self.ST03T1_LineEdit_LaneNumber.text())
+        except:
+            LaneNumber = -1
         Append_to_Database(self.conn, self.cursor, {
             "Bnumber": int(self.ST03T1_LineEdit_BNumber.text()), 
-            "Lane_Num": int(self.ST03T1_LineEdit_LaneNumber.text()),
+            "Lane_Num": LaneNumber,
             "Lab_Aging": self.ST03T1_DropDown_LabAging.currentText(), 
             "RepNumber": RepNumber, 
             "Wheel_Side": self.ST03T1_DropDown_WheelSide.currentText(), 
@@ -1672,7 +1877,9 @@ class MainPage(QMainWindow):
             self.axes.set_ylabel('Rut depth (mm)', fontsize=10, fontweight='bold', color='k')
             self.axes.grid(which='both', color='gray', alpha=0.1)
             self.axes.set_xlim([0, 20000])
-            self.axes.set_xticklabels([f'{num:,.0f}' for num in self.axes.get_xticks()])
+            Xticks = self.axes.get_xticks()
+            self.axes.set_xticks(Xticks)
+            self.axes.set_xticklabels([f'{num:,.0f}' for num in Xticks])
             self.axes.set_ylim([0, 10])
             self.fig.set_constrained_layout(True)
             self.canvas.draw()
@@ -1810,6 +2017,15 @@ class MainPage(QMainWindow):
         self.SpinBox_MaxPassNumber.setRange(self.SpinBox_MinPassNumber.value() + 1, int(Passes.max()))
         self.SpinBox_MinPassNumber.setRange(0, self.SpinBox_MaxPassNumber.value() - 1)
         # --------------------------------------------------------------------------------------------------------------
+        # Update the raw datapoint plotting spacing. 
+        Spacing = int(len(Passes) / 200)
+        if Spacing < 1:
+            Spacing = 1
+        elif Spacing > 40:
+            Spacing = 40
+        self.SpinBox_RawDataSpacing.setValue(Spacing)
+        self.CheckBox_GuideSNin2PP.setChecked(True)
+        # --------------------------------------------------------------------------------------------------------------
         # Plot the results.
         self.Function_Button_ResetRePlot()
         # Update the general information in result tab. 
@@ -1829,6 +2045,10 @@ class MainPage(QMainWindow):
             popup.exec_()
         elif link == 'Model_6deg':
             jpg_path = ResourcePath(os.path.join(".", "assets", "Model_6deg.jpg"))
+            popup = ScrollableImagePopup(jpg_path)
+            popup.exec_()
+        elif link == 'Model_Fnk':
+            jpg_path = ResourcePath(os.path.join(".", "assets", "Model_Fnk.jpg"))
             popup = ScrollableImagePopup(jpg_path)
             popup.exec_()
         else:

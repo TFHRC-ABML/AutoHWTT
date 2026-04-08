@@ -161,22 +161,36 @@ def Read_HWTT_Excel_File(FilePath):
             'Wheel_Side'        : data.loc[2, 'Value'], 
             'Test_Date'         : '01/01/1990', 
             'Test_Time'         : '00:00', 
-            'Test_Name'         : data.loc[3, 'Value']}
+            'Test_Name'         : data.loc[3, 'Value'], 
+            'ID Number'         : 0}
         Time = data.loc[6, 'Value']
         if type(Time) == datetime.time:
             Props['Test_Time'] = Time.strftime("%H:%M")
-        elif not (np.isnan(Time) or Time == ''):
-            Props['Test_Time'] = f"{Time.split(':')[0]:02d}:{Time.split(':')[1]:02d}"
+        elif type(Time) == str and Time != '':
+            try:
+                Props['Test_Time'] = f"{int(Time.split(':')[0]):02d}:{int(Time.split(':')[1]):02d}"
+            except:
+                pass
         Date = data.loc[7, 'Value']
         if type(Date) == datetime.date:
             Props['Test_Date'] = Date.strftime("%m/%d/%Y")
-        elif type(Date) == datetime.datetime:
+        elif type(Date) == datetime.date:
             Props['Test_Date'] = Date.strftime("%m/%d/%Y")
-        elif not (np.isnan(Date) or Date == ''):
+        elif type(Date) == str and re.search(r'(\d+/\d+/\d+)', Date):
+            match = re.search(r'(\d+/\d+/\d+)', Date)
+            Props['Test_Date'] = Date
+        elif type(Date) == str and Date != '':
             Month = int(Date.split('-')[0])
             Day   = int(Date.split('-')[1])
             Year  = int(Date.split(' ')[0].split('-')[-1])
             Props['Test_Date'] = f'{Month:02d}/{Day:02d}/{Year:04d}'
+        IDNum = data.loc[4, 'Value']
+        if type(IDNum) == str:
+            try: 
+                IDNum = int(IDNum)
+            except:
+                IDNum = 0
+        Props['ID Number'] = IDNum
         # Modify the temperatures. 
         if np.all(np.isnan(Temp)):
             Temp = np.ones(Temp.shape) * Props['Test_Temperature']
