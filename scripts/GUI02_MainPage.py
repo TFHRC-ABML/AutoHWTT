@@ -13,10 +13,11 @@ import sqlite3
 import fnmatch
 import numpy as np
 import matplotlib.pyplot as plt
+from time import perf_counter, sleep
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QAction, QDoubleSpinBox, QLabel, \
     QPushButton, QWidget, QGridLayout, QFormLayout, QLineEdit, QFileDialog, QMessageBox, QGroupBox, QProgressBar, \
     QPlainTextEdit, QStackedWidget, QCheckBox, QComboBox, QTabWidget, QScrollArea, QTableWidget, QTableWidgetItem, \
-    QSpinBox, QFrame, QDialog, QRadioButton, QButtonGroup
+    QSpinBox, QFrame, QDialog, QRadioButton, QButtonGroup, QProgressDialog
 from PyQt5.QtGui import QPixmap, QFont, QRegExpValidator, QDoubleValidator, QIntValidator, QPixmap
 from PyQt5.QtCore import Qt, QRegExp
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -24,8 +25,8 @@ from matplotlib.figure import Figure
 from PIL import Image
 from scipy.optimize import fsolve
 from scripts.Alg01_UtilityFunctions import Read_HWTT_Text_File, Read_HWTT_Excel_File, Array_to_Binary, \
-    ScrollableMessageBox, ResourcePath
-from scripts.Alg02_SQL_Manager import Append_to_Database
+    ScrollableMessageBox, ResourcePath, Binary_to_Array, CleanVal
+from scripts.Alg02_SQL_Manager import Append_to_Database, Update_Database
 from scripts.Alg03_HWTT_Analysis_Functions import HWTT_Analysis, ModelPower, TsengLyttonModel, YinModel, Francken_Model
 from scripts.GUI03_ReviewPage import DB_ReviewPage
 
@@ -61,7 +62,7 @@ class Main_Window(QMainWindow):
         # Create QStackedWidget.
         self.stack = QStackedWidget()
         # Create pages
-        self.main_page = MainPage(conn, cursor, DB_Name, DB_Folder, self.stack)
+        self.main_page = MainPage(conn, cursor, DB_Name, DB_Folder, self.stack, self.shared_data)
         self.db_review_page = DB_ReviewPage(conn, cursor, DB_Name, DB_Folder, self.stack, self.shared_data)
             # self.FTIR_revise_page = Revise_FTIR_AnalysisPage(conn, cursor, DB_Name, DB_Folder, self.stack, self.shared_data)
         # Add pages to the stack
@@ -80,7 +81,7 @@ class MainPage(QMainWindow):
     This class generates the GUI for the main page of the HWTT Analysis Tool, where the user can load a database and 
     add more data, modify the current data, etc.
     """
-    def __init__(self, conn, cursor, DB_Name, DB_Folder, stack):
+    def __init__(self, conn, cursor, DB_Name, DB_Folder, stack, shared_data):
         # Initiate the required parameters. 
         super().__init__()
         self.conn = conn            # connection to the SQL database.
@@ -90,6 +91,7 @@ class MainPage(QMainWindow):
         self.CurrentFileList = []   # A list of the input files that need to be analyzed!
         self.CurrentFileIndex = 0   # Index of the file to be analyzed. 
         self.stack = stack
+        self.shared_data = shared_data
         self.ShowFileExistedError = True
         self.ValidPasses  = [0, 20000]
         self.CurIsotherms = None    # To store the current binder isotherms (raw data)
@@ -106,6 +108,54 @@ class MainPage(QMainWindow):
                                        np.random.permutation(np.arange(len(self.PlotProps['Markers'])))]
         self.PlotProps['LineStyle'] = [self.PlotProps['LineStyle'][i] for i in 
                                        np.random.permutation(np.arange(len(self.PlotProps['LineStyle'])))]
+        # Define some button styles. 
+        self.PushButtonStyle = {
+            "General": """
+        QPushButton:enabled {
+            background-color: #DCECF9; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:disabled {
+            background-color: #dcdcdc; color: #808080;border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:hover {
+            background-color: lightgray; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:pressed {
+            background-color: gray; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        """, 
+            "AddData" : """
+        QPushButton:enabled {
+            background-color: #93E9BE; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:disabled {
+            background-color: #dcdcdc; color: #808080;border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:hover {
+            background-color: #56C28B; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:pressed {
+            background-color: gray; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:checked {
+            background-color: lime; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        """, 
+            "Review":  """
+        QPushButton:enabled {
+            background-color: #F2E394; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:disabled {
+            background-color: #dcdcdc; color: #808080;border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:hover {
+            background-color: #E0D57D; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:pressed {
+            background-color: gray; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:checked {
+            background-color: lime; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        """, 
+            "Reject":  """
+        QPushButton:enabled {
+            background-color: #FA8072; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:disabled {
+            background-color: #dcdcdc; color: #808080;border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:hover {
+            background-color: #CC5F55; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:pressed {
+            background-color: gray; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:checked {
+            background-color: lime; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        """, }
         self.initUI()
     # ------------------------------------------------------------------------------------------------------------------
     def initUI(self):
@@ -129,31 +179,19 @@ class MainPage(QMainWindow):
         self.Button_AddFiles.setFont(QFont("Arial", 10, QFont.Bold))
         self.Button_AddFiles.clicked.connect(self.Function_Button_Add_Text_Files)
         self.Button_AddFiles.setFixedSize(200, 50)
-        self.Button_AddFiles.setStyleSheet(
-        """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        """)
+        self.Button_AddFiles.setStyleSheet(self.PushButtonStyle['General'])
         # Button for adding data copied. 
         self.Button_AddCopied = QPushButton("Import HWTT Raw Data\n(Excel Files)")
         self.Button_AddCopied.setFont(QFont("Arial", 10, QFont.Bold))
         self.Button_AddCopied.clicked.connect(self.Function_Button_Add_Excel_Files)
         self.Button_AddCopied.setFixedSize(200, 50)
-        self.Button_AddCopied.setStyleSheet(
-        """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        """)
+        self.Button_AddCopied.setStyleSheet(self.PushButtonStyle['General'])
         # Button for Providing the template.
         self.Button_Template = QPushButton("Template Source")
         self.Button_Template.setFont(QFont("Arial", 10, QFont.Bold))
         self.Button_Template.clicked.connect(self.Function_Button_Template)
-        self.Button_Template.setFixedSize(130, 40)
-        self.Button_Template.setStyleSheet(
-        """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        """)
+        self.Button_Template.setFixedSize(160, 40)
+        self.Button_Template.setStyleSheet(self.PushButtonStyle['General'])
         # Create a progress bar. 
         self.ProgressBar = QProgressBar(self)
         self.ProgressBar.setMinimum(0)
@@ -171,13 +209,7 @@ class MainPage(QMainWindow):
         self.Button_Review.clicked.connect(self.Function_Button_Review)
         self.Button_Review.setFixedSize(180, 40)
         self.Button_Review.setEnabled(True)
-        self.Button_Review.setStyleSheet(
-        """
-        QPushButton:enabled {background-color: #FFE4B5; color: black;}
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        QPushButton:checked {background-color: lime;}
-        """)
+        self.Button_Review.setStyleSheet(self.PushButtonStyle['Review'])
         # Create a label to show the file updater. 
         self.Label_InputFileUpdate = QLabel('Waiting for input files...')
         # process the layouts. 
@@ -211,7 +243,7 @@ class MainPage(QMainWindow):
         SectT02_FormLayout.addRow(ST02_Label02, self.SpinBox_MinPassNumber)
         ST02_Label03 = QLabel(f'{"Boundary for Maximum Pass Number:".ljust(70)}')
         self.SpinBox_MaxPassNumber = QSpinBox()
-        self.SpinBox_MaxPassNumber.setRange(15000, 20000)
+        self.SpinBox_MaxPassNumber.setRange(5000, 20000)
         self.SpinBox_MaxPassNumber.setValue(20000)
         self.SpinBox_MaxPassNumber.setEnabled(False)
         SectT02_FormLayout.addRow(ST02_Label03, self.SpinBox_MaxPassNumber)
@@ -296,25 +328,14 @@ class MainPage(QMainWindow):
         self.Button_RunAnalysis.clicked.connect(self.Function_Button_RunAnalysis)
         self.Button_RunAnalysis.setFixedSize(200, 50)
         self.Button_RunAnalysis.setEnabled(False)
-        self.Button_RunAnalysis.setStyleSheet(
-        """
-        QPushButton:enabled {background-color: lightblue; color: black;}
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        QPushButton:checked {background-color: lime;}
-        """)
+        self.Button_RunAnalysis.setStyleSheet(self.PushButtonStyle['AddData'])
         # Button for Replotting the raw data.
         self.Button_ResetRePlot = QPushButton("Reset/Re-Plot Raw Data")
         self.Button_ResetRePlot.setFont(QFont("Arial", 12, QFont.Bold))
         self.Button_ResetRePlot.clicked.connect(self.Function_Button_ResetRePlot)
-        self.Button_ResetRePlot.setFixedSize(200, 40)
+        self.Button_ResetRePlot.setFixedSize(220, 40)
         self.Button_ResetRePlot.setEnabled(False)
-        self.Button_ResetRePlot.setStyleSheet(
-        """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        QPushButton:checked {background-color: lime;}
-        """)
+        self.Button_ResetRePlot.setStyleSheet(self.PushButtonStyle['General'])
         SectT02_LayoutH1 = QHBoxLayout()
         SectT02_LayoutH1.addWidget(self.Button_RunAnalysis)
         SectT02_LayoutH1.addWidget(self.Button_ResetRePlot)
@@ -332,26 +353,14 @@ class MainPage(QMainWindow):
         self.Button_FailResult.clicked.connect(self.Function_Button_FailResult)
         self.Button_FailResult.setFixedSize(180, 50)
         self.Button_FailResult.setEnabled(False)
-        self.Button_FailResult.setStyleSheet(
-        """
-        QPushButton:enabled {background-color: #FFB6C1; color: black;}
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        QPushButton:checked {background-color: lime;}
-        """)
+        self.Button_FailResult.setStyleSheet(self.PushButtonStyle['Reject'])
         # Button for specify the result as Accepted.
         self.Button_AcceptResult = QPushButton("This Result is\nAccepted")
         self.Button_AcceptResult.setFont(QFont("Arial", 13, QFont.Bold))
         self.Button_AcceptResult.clicked.connect(self.Function_Button_PassResult)
         self.Button_AcceptResult.setFixedSize(180, 50)
         self.Button_AcceptResult.setEnabled(False)
-        self.Button_AcceptResult.setStyleSheet(
-        """
-        QPushButton:enabled {background-color: lightgreen; color: black;}
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        QPushButton:checked {background-color: lime;}
-        """)
+        self.Button_AcceptResult.setStyleSheet(self.PushButtonStyle['AddData'])
         SectT02_LayoutH2 = QHBoxLayout()
         SectT02_LayoutH2.addWidget(self.Button_AcceptResult)
         SectT02_LayoutH2.addWidget(self.Button_FailResult)
@@ -813,6 +822,11 @@ class MainPage(QMainWindow):
         self.Menu_Edit_SaveFigure = QAction("Save Figure (current view)")
         self.Menu_Edit_SaveFigure.triggered.connect(self.Function_Menu_SaveFigure)
         self.Menu_Edit_SaveFigure.setEnabled(True)
+        # ------------------------
+        self.Menu_Run_ReRunDatabase = QAction('Re-run Database')
+        self.Menu_Run_ReRunDatabase.triggered.connect(self.Function_Rerun_Database)
+        self.Menu_Run_ReRunDatabase.setEnabled(True)
+        # ------------------------
         # self.Menu_Fit_Outlier      = QAction("Specify Outlier", checkable=True)
         # self.Menu_Fit_Outlier.triggered.connect(self.Function_Button_SpecifyOutlier)
         self.Menu_Help_Help        = QAction('Help')
@@ -830,8 +844,345 @@ class MainPage(QMainWindow):
         EditMenu.addSeparator()
         EditMenu.addAction(self.Menu_Edit_CopyFigure)
         EditMenu.addAction(self.Menu_Edit_SaveFigure)
+        RunMenu.addAction(self.Menu_Run_ReRunDatabase)
         HelpMenu.addAction(self.Menu_Help_Help)
         HelpMenu.addAction(self.Menu_Help_License)
+    # ------------------------------------------------------------------------------------------------------------------
+    def showEvent(self, event):
+        # This function will be called when the window is shown.
+        super().showEvent(event)  # Call the base class implementation
+        # Clear the table and reset the plot.
+        self.Function_Clear_Result_Tables()
+        self.Function_Clear_Plot()
+        # Reset the selection of plotting and SIP calculation method, and Checkboxes. 
+        self.PlotModel_2PP.setChecked(True)
+        self.PlotModel_Fnk.setChecked(False)
+        self.PlotModel_Yin.setChecked(False)
+        self.PlotModel_6deg.setChecked(False)
+        self.SIPAdjusted_MaxRut.setChecked(True)
+        self.SIPAdjusted_Threshold.setChecked(False)
+        self.CheckBox_GuideSNin2PP.setChecked(True)
+        self.CheckBox_OffsetFirstRawData.setChecked(True)
+        # If the shared_data value is -1, it means the app should be ready for more input, otherwise, the shared_data 
+        #   value is the index of the data to be shown and modified here. 
+        if self.shared_data.data == -1:
+            # Clear the general tab of the table and disable it. 
+            self.SectT03_TabWidget.setCurrentIndex(0)
+            self.SectT03_TabWidget.setEnabled(False)
+            self.ST03T1_LineEdit_FileName.setText('')
+            self.ST03T1_LineEdit_TestName.setText('')
+            self.ST03T1_LineEdit_BNumber.setText('')
+            self.ST03T1_LineEdit_LaneNumber.setText('')
+            self.ST03T1_DropDown_LiftLocation.setCurrentIndex(0)
+            self.ST03T1_DropDown_LabAging.setCurrentIndex(0)
+            self.ST03T1_LineEdit_TechnicianName.setText('')
+            self.ST03T1_LineEdit_TestDate.setText('')
+            self.ST03T1_LineEdit_TestTime.setText('')
+            self.ST03T1_DropDown_TestCondition.setCurrentIndex(0)
+            self.ST03T1_DropDown_WheelSide.setCurrentIndex(0)
+            self.ST03T1_LineEdit_TargetTestTemp.setText('')
+            self.ST03T1_LineEdit_AvgTestTemp.setText('')
+            self.ST03T1_LineEdit_StdTestTemp.setText('')
+            self.ST03T1_LineEdit_OtherComments.setText('')
+            # Determine the initial condition for the input section.
+            self.Button_AddCopied.setEnabled(True)
+            self.Button_AddFiles.setEnabled(True)
+            self.Button_Template.setEnabled(True)
+            self.Button_Review.setEnabled(True)
+            self.ProgressBar.setEnabled(False)
+            self.ProgressBar.setValue(0)
+            # Determine the initial condition for the Visualization, Setting, and Run section. 
+            self.Button_RunAnalysis.setEnabled(False)
+            self.Button_ResetRePlot.setEnabled(False)
+            self.Button_AcceptResult.setEnabled(False)
+            self.Button_FailResult.setEnabled(False)
+            self.PlotModel_2PP.setEnabled(False)
+            self.PlotModel_Fnk.setEnabled(False)
+            self.PlotModel_Yin.setEnabled(False)
+            self.PlotModel_6deg.setEnabled(False)
+            self.SIPAdjusted_MaxRut.setEnabled(False)
+            self.SIPAdjusted_Threshold.setEnabled(False)
+            self.CheckBox_GuideSNin2PP.setEnabled(False)
+            self.CheckBox_OffsetFirstRawData.setEnabled(False)
+            self.SpinBox_MinPassNumber.setValue(0)
+            self.SpinBox_MaxPassNumber.setValue(20000)
+            self.SpinBox_MinPassNumber.setEnabled(False)
+            self.SpinBox_MaxPassNumber.setEnabled(False)
+            self.SpinBox_RawDataSpacing.setValue(40)
+            self.SpinBox_RawDataSpacing.setEnabled(True)
+        # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+        else:
+            ID = self.shared_data.data          # The index of the data to be shown and modified here.
+            # --------- Input Data Section (Disabling) -------------------------------------
+            # Determine the initial condition for the input section.
+            self.Button_AddCopied.setEnabled(False)
+            self.Button_AddFiles.setEnabled(False)
+            self.Button_Template.setEnabled(False)
+            self.Button_Review.setEnabled(False)
+            self.ProgressBar.setEnabled(False)
+            self.ProgressBar.setValue(0)
+            # --------- Raw Data Preparation -------------------------------------
+            # Read the raw data from the database.
+            Columns2Fetch = ['Data', 'Data_shape', 'Data_dtype']
+            self.cursor.execute(f"SELECT {', '.join(Columns2Fetch)} FROM HWTT WHERE id = ?", (ID,))
+            row = self.cursor.fetchall()[0]
+            Arr = Binary_to_Array(row[0], row[1], row[2])
+            # Update the results variable. 
+            self.Results['Passes'] = Arr[0, :].astype(np.int64)
+            self.Results['RutDepth'] = Arr[1, :]
+            self.Results['Temperatures'] = Arr[2, :]
+            # Update the raw datapoint plotting spacing. 
+            Spacing = int(len(self.Results['Passes']) / 200)
+            if Spacing < 1:
+                Spacing = 1
+            elif Spacing > 40:
+                Spacing = 40
+            self.SpinBox_RawDataSpacing.setValue(Spacing)
+            # Update the plot level. 
+            self.Results['Plot_Level'] = 1
+            # --------- General Information Tab -------------------------------------
+            # Read the results from the database.
+            Columns2Fetch = [
+                'FileName', 'Test_Name', 'Bnumber', 'Lane_Num', 'Lift_Location', 'Lab_Aging', 'Technician_Name', 
+                'Test_Date', 'Test_Time', 'Test_Condition', 'Wheel_Side', 
+                'Target_Test_Temperature', 'Avg_Test_Temperature', 'Std_Test_Temperature', 'Other_Comments', 
+                'Valid_Min_Pass', 'Valid_Max_Pass', 'FileDirectory']
+            self.cursor.execute(f"SELECT {', '.join(Columns2Fetch)} FROM HWTT WHERE id = ?", (ID,))
+            row = self.cursor.fetchall()[0]
+            # Fill the table. 
+            self.ST03T1_LineEdit_FileName.setText(row[0])
+            self.ST03T1_LineEdit_TestName.setText(row[1])
+            self.ST03T1_LineEdit_BNumber.setText(str(row[2]))
+            self.ST03T1_LineEdit_LaneNumber.setText(str(row[3]))
+            if row[4].lower() == 'top':
+                self.ST03T1_DropDown_LiftLocation.setCurrentIndex(1)
+            elif row[4].lower() == 'bottom':
+                self.ST03T1_DropDown_LiftLocation.setCurrentIndex(2)
+            else:
+                self.ST03T1_DropDown_LiftLocation.setCurrentIndex(3)
+            AgingLevels = [self.ST03T1_DropDown_LabAging.itemText(ii) \
+                           for ii in range(self.ST03T1_DropDown_LabAging.count())]
+            if row[5] in AgingLevels:
+                index = AgingLevels.index(row[5])
+                self.ST03T1_DropDown_LabAging.setCurrentIndex(index)
+            else:
+                self.ST03T1_DropDown_LabAging.setCurrentIndex(len(AgingLevels)-1)
+            if row[5] == "No Lab Aging (Field Core)":
+                print(f'Lab Aging was not found! Value selected value can be incorrect. Please check!')
+                self.ST03T1_DropDown_LabAging.setCurrentIndex(1)
+            self.ST03T1_LineEdit_TechnicianName.setText(row[6])
+            self.ST03T1_LineEdit_TestDate.setText(row[7])
+            self.ST03T1_LineEdit_TestTime.setText(row[8])
+            if row[9].lower() == 'wet':
+                self.ST03T1_DropDown_TestCondition.setCurrentIndex(1)
+            elif row[9].lower() == 'dry':
+                self.ST03T1_DropDown_TestCondition.setCurrentIndex(2)
+            if row[10].lower() == 'left': 
+                self.ST03T1_DropDown_WheelSide.setCurrentIndex(1)
+            elif row[10].lower() == 'right':
+                self.ST03T1_DropDown_WheelSide.setCurrentIndex(2)
+            else:
+                self.ST03T1_DropDown_WheelSide.setCurrentIndex(3)
+            self.ST03T1_LineEdit_TargetTestTemp.setText(self.fmt(row[11], '.2f'))
+            self.ST03T1_LineEdit_AvgTestTemp.setText(self.fmt(row[12], '.2f'))
+            self.ST03T1_LineEdit_StdTestTemp.setText(self.fmt(row[13], '.4f'))
+            self.ST03T1_LineEdit_OtherComments.setText(row[14])
+            self.SpinBox_MinPassNumber.setValue(int(row[15]))
+            self.SpinBox_MaxPassNumber.setValue(int(row[16]))
+            # Enable the table. 
+            self.SectT03_TabWidget.setCurrentIndex(0)
+            self.SectT03_TabWidget.setEnabled(True)
+            # Update the internal variable for FileList. 
+            self.CurrentFileList = [os.path.join(row[17], row[0])]
+            self.CurrentFileIndex = 0
+            # --------- Model 2PP Tab -------------------------------------
+            try:
+                # Read the results from the database.
+                Columns2Fetch = [
+                    'TPP_Max_Rut_mm', 'TPP_Max_Pass', 'TPP_RuttingAt10k_mm', 'TPP_RuttingAt20k_mm',
+                    'TPP_ModelCoeff_a', 'TPP_ModelCoeff_b', 
+                    'TPP_ModelCoeff_alpha', 'TPP_ModelCoeff_beta', 'TPP_ModelCoeff_gamma', 'TPP_ModelCoeff_Phi', 
+                    'TPP_Stripping_Rutting_mm', 'TPP_Stripping_Rutting_Pass', 
+                    'TPP_SIP', 'TPP_SIP_Yvalue', 'TPP_SIP_Adj', 'TPP_SIP_Adj_Yvalue','TPP_StrippingNumber', 
+                    'TPP_CreepLine_Slope', 'TPP_CreepLine_Intercept', 
+                    'TPP_StrippingLine_Slope', 'TPP_StrippingLine_Intercept',
+                    'TPP_StrippingLine_Slope_Adj', 'TPP_StrippingLine_Intercept_Adj',]
+                self.cursor.execute(f"SELECT {', '.join(Columns2Fetch)} FROM HWTT WHERE id = ?", (ID,))
+                row = self.cursor.fetchall()[0]
+                # Constructing the final model using the coefficients (this is not available in the DB). 
+                XX  = np.linspace(0, row[1], num=20001)
+                Yp1 = row[4] * XX ** row[5]
+                Yp2 = row[6] * (XX - row[8]) ** row[7] + row[9]
+                YY  = Yp1.copy()
+                YY[XX > row[16]] = Yp2[XX > row[16]]
+                # Update the self.Results variable.
+                self.Results['2PP'] = {
+                    'Maximum_Rutting_mm'            : row[0],
+                    'Maximum_Passes'                : row[1],
+                    'Rutting@10k_mm'                : row[2],
+                    'Rutting@20k_mm'                : row[3],
+                    'Rutting_PowerModel_Coeff'      : [row[4], row[5]],
+                    'Rutting_PowerModel_Part2_Coeff': [row[6], row[7], row[8], row[9]],
+                    'Stripping_Rutting_mm'          : row[10],
+                    'Stripping_Rutting_Pass'        : row[11],
+                    'SIP'                           : row[12],
+                    'SIP_Yval_mm'                   : row[13],
+                    'SIP_Adj'                       : row[14],
+                    'SIP_Adj_Yval_mm'               : row[15],
+                    'Stripping_Number'              : row[16],
+                    'CreepLine'                     : [row[17], row[18]],
+                    'TangentLine'                   : [row[19], row[20]],
+                    'TangentLine_Adj'               : [row[21], row[22]],
+                    'Xmodel'                        : XX,
+                    'Ymodel'                        : YY,}
+                if row[16] == -1:
+                    raise Exception('Rerun is needed.')
+                # --------- Model Yin Tab -------------------------------------
+                # Read the results from the database.
+                Columns2Fetch = [
+                    'Yin_Max_Rut_mm', 'Yin_Max_Pass', 'Yin_RuttingAt10k_mm', 'Yin_RuttingAt20k_mm',
+                    'Yin_ModelCoeff_Step1_ro', 'Yin_ModelCoeff_Step1_LCult', 'Yin_ModelCoeff_Step1_beta', 
+                    'Yin_ModelCoeff_Step2_RutMax', 'Yin_ModelCoeff_Step2_alpha', 'Yin_ModelCoeff_Step2_lambda', 
+                    'Yin_ModelCoeff_Step3_Eps0', 'Yin_ModelCoeff_Step3_theta', 
+                    'Yin_Stripping_Rutting_mm', 'Yin_Stripping_Rutting_Pass', 
+                    'Yin_SIP', 'Yin_SIP_Yvalue', 'Yin_SIP_Adj', 'Yin_SIP_Adj_Yvalue', 'Yin_StrippingNumber', 
+                    'Yin_CreepLine_Slope', 'Yin_CreepLine_Intercept', 'Yin_StrippingLine_Slope', 'Yin_StrippingLine_Intercept',
+                    'Yin_StrippingLine_Slope_Adj', 'Yin_StrippingLine_Intercept_Adj',
+                    'Yin_Parameter_LCSN', 'Yin_Parameter_LCST', 'Yin_Parameter_DeltaEpsAt10k',]
+                self.cursor.execute(f"SELECT {', '.join(Columns2Fetch)} FROM HWTT WHERE id = ?", (ID,))
+                row = self.cursor.fetchall()[0]
+                # Constructing the final model using the Step 1 model. 
+                XX = np.linspace(0, row[1], num=20001)
+                YY = YinModel(XX, row[4], row[5], row[6])
+                # Update the self.Results variable.
+                self.Results['Yin'] = {
+                    'Maximum_Rutting_mm'    : row[0],
+                    'Maximum_Passes'        : row[1],
+                    'Rutting@10k_mm'        : row[2],
+                    'Rutting@20k_mm'        : row[3],
+                    'Rutting_Step1_Coeff'   : [row[4], row[5], row[6]],
+                    'Rutting_Step2_Coeff'   : [row[7], row[8], row[9]],
+                    'Rutting_Step3_Coeff'   : [row[10], row[11]],
+                    'Stripping_Rutting_mm'  : row[12],
+                    'Stripping_Rutting_Pass': row[13],
+                    'SIP'                   : row[14],
+                    'SIP_Yval_mm'           : row[15],
+                    'SIP_Adj'               : row[16],
+                    'SIP_Adj_Yval_mm'       : row[17],
+                    'Stripping_Number'      : row[18],
+                    'CreepLine'             : [row[19], row[20]],
+                    'TangentLine'           : [row[21], row[22]],
+                    'TangentLine_Adj'       : [row[23], row[24]],
+                    'Xmodel'                : XX,
+                    'Ymodel'                : YY,
+                    'LCSN'                  : row[25],
+                    'LCST'                  : row[26], 
+                    'DeltaEps@10k'          : row[27],}
+                # --------- Model Francken Tab -------------------------------------
+                # Read the results from the database.
+                Columns2Fetch = [
+                    'Fnk_Max_Rut_mm', 'Fnk_Max_Pass', 'Fnk_RuttingAt10k_mm', 'Fnk_RuttingAt20k_mm', 
+                    'Fnk_ModelCoeff_A', 'Fnk_ModelCoeff_B', 'Fnk_ModelCoeff_C', 'Fnk_ModelCoeff_D', 
+                    'Fnk_Stripping_Rutting_mm', 'Fnk_Stripping_Rutting_Pass', 
+                    'Fnk_SIP', 'Fnk_SIP_Yvalue', 'Fnk_SIP_Adj', 'Fnk_SIP_Adj_Yvalue', 'Fnk_StrippingNumber', 
+                    'Fnk_CreepLine_Slope', 'Fnk_CreepLine_Intercept', 'Fnk_StrippingLine_Slope', 'Fnk_StrippingLine_Intercept',
+                    'Fnk_StrippingLine_Slope_Adj', 'Fnk_StrippingLine_Intercept_Adj',]
+                self.cursor.execute(f"SELECT {', '.join(Columns2Fetch)} FROM HWTT WHERE id = ?", (ID,))
+                row = self.cursor.fetchall()[0]
+                # Constructing the final model. 
+                XX  = np.linspace(0, row[1], num=20001)
+                YY  = Francken_Model(XX, row[4], row[5], row[6], row[7])
+                # Update the self.Results variable.
+                self.Results['Fnk'] = {
+                    'Maximum_Rutting_mm'            : row[0],
+                    'Maximum_Passes'                : row[1],
+                    'Rutting@10k_mm'                : row[2],
+                    'Rutting@20k_mm'                : row[3],
+                    'Rutting_Francken_Coeff'        : [row[4], row[5], row[6], row[7]],
+                    'Stripping_Rutting_mm'          : row[8],
+                    'Stripping_Rutting_Pass'        : row[9],
+                    'SIP'                           : row[10],
+                    'SIP_Yval_mm'                   : row[11],
+                    'SIP_Adj'                       : row[12],
+                    'SIP_Adj_Yval_mm'               : row[13],
+                    'Stripping_Number'              : row[14],
+                    'CreepLine'                     : [row[15], row[16]],
+                    'TangentLine'                   : [row[17], row[18]],
+                    'TangentLine_Adj'               : [row[19], row[20]],
+                    'Xmodel'                        : XX,
+                    'Ymodel'                        : YY,}
+                # --------- Model 6-Degree Polynomial Tab -------------------------------------
+                # Read the results from the database.
+                Columns2Fetch = [
+                    'Poly6_Max_Rut_mm', 'Poly6_Max_Pass', 'Poly6_RuttingAt10k_mm', 'Poly6_RuttingAt20k_mm', 
+                    'Poly6_ModelCoeff_a0', 'Poly6_ModelCoeff_a1', 'Poly6_ModelCoeff_a2', 'Poly6_ModelCoeff_a3',
+                    'Poly6_ModelCoeff_a4', 'Poly6_ModelCoeff_a5', 'Poly6_ModelCoeff_a6', 
+                    'Poly6_Stripping_Rutting_mm', 'Poly6_Stripping_Rutting_Pass', 'Poly6_StrippingNumber', 
+                    'Poly6_CreepLine_Slope', 'Poly6_CreepLine_Intercept', ]
+                self.cursor.execute(f"SELECT {', '.join(Columns2Fetch)} FROM HWTT WHERE id = ?", (ID,))
+                row = self.cursor.fetchall()[0]
+                # Constructing the final model.
+                Coeff = [row[10], row[9], row[8], row[7], row[6], row[5], row[4]]
+                First_Derivative  = np.polyder(Coeff, m=1)
+                XX = np.linspace(0, row[1], num=20001)
+                YY = np.polyval(Coeff, XX)
+                # Update the self.Results variable.
+                SN = row[13]
+                SN_Yval = np.interp(SN, self.Results['Passes'], self.Results['RutDepth'])
+                self.Results['6deg'] = {
+                    'Maximum_Rutting_mm'    : row[0],
+                    'Maximum_Passes'        : row[1],
+                    'Rutting@10k_mm'        : row[2],
+                    'Rutting@20k_mm'        : row[3],
+                    'Rutting_6degPolynomial_Coeff': [row[10], row[9], row[8], row[7], row[6], row[5], row[4]],
+                    'Stripping_Rutting_mm'  : row[11],
+                    'Stripping_Rutting_Pass': row[12],
+                    'Stripping_Number'      : SN,
+                    'CreepLine'             : [np.polyval(First_Derivative, SN), 
+                                            SN_Yval - np.polyval(First_Derivative, SN) * SN],
+                    'Xmodel': XX,
+                    'Ymodel': YY,}
+                # --------- Setting, Visualization and Run Section (Enabling) -------------------------------------
+                # Enabling the Pass/Fail and Re-Plot buttons.
+                self.Button_AcceptResult.setEnabled(True)
+                self.Button_FailResult.setEnabled(True)
+                self.Button_ResetRePlot.setEnabled(True)
+                self.Button_RunAnalysis.setEnabled(False)
+                # Enable the plotting options. 
+                self.CheckBox_GuideSNin2PP.setEnabled(False)
+                self.CheckBox_OffsetFirstRawData.setEnabled(False)
+                self.PlotModel_2PP.setEnabled(True)
+                self.PlotModel_Fnk.setEnabled(True)
+                self.PlotModel_Yin.setEnabled(True)
+                self.PlotModel_6deg.setEnabled(True)
+                self.SIPAdjusted_MaxRut.setEnabled(True)
+                self.SIPAdjusted_Threshold.setEnabled(True)
+                self.SpinBox_MinPassNumber.setEnabled(False)
+                self.SpinBox_MaxPassNumber.setEnabled(False)
+                # --------- Update the result table ------------------------------------- 
+                self.Function_Update_Model_Fit_Analysis_Parameters()
+            except:
+                # Otherwise, if any of the models were not available, the code should start from scratch. 
+                # Update the plot level. 
+                self.Results['Plot_Level'] = 0
+                # Adjust button status.
+                self.Button_AcceptResult.setEnabled(False)
+                self.Button_FailResult.setEnabled(True)
+                self.Button_ResetRePlot.setEnabled(True)
+                self.Button_RunAnalysis.setEnabled(True)
+                self.CheckBox_GuideSNin2PP.setEnabled(True)
+                self.CheckBox_OffsetFirstRawData.setEnabled(True)
+                self.PlotModel_2PP.setEnabled(False)
+                self.PlotModel_Fnk.setEnabled(False)
+                self.PlotModel_Yin.setEnabled(False)
+                self.PlotModel_6deg.setEnabled(False)
+                self.SIPAdjusted_MaxRut.setEnabled(False)
+                self.SIPAdjusted_Threshold.setEnabled(False)
+                self.SpinBox_MinPassNumber.setEnabled(True)
+                self.SpinBox_MaxPassNumber.setEnabled(True)
+            # --------- Update the plotting ------------------------------------- 
+            # Call the Plotter. 
+            self.Function_Plotter()
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Button_Template(self):
         # This function will ask user which template they want and then save it to the user specified location. 
@@ -945,6 +1296,9 @@ class MainPage(QMainWindow):
         This function reset the current analysis (visuals) and replot the raw data. 
         """
         # Turn off the Accept/Fail buttons. 
+        self.SpinBox_MinPassNumber.setEnabled(True)
+        self.SpinBox_MaxPassNumber.setEnabled(True)
+        self.CheckBox_OffsetFirstRawData.setEnabled(True)
         self.CheckBox_GuideSNin2PP.setEnabled(True)
         self.Button_RunAnalysis.setEnabled(True)
         self.Button_FailResult.setEnabled(True)
@@ -1041,8 +1395,9 @@ class MainPage(QMainWindow):
                 self.axes.plot(self.Results['Fnk']['Stripping_Number'], 
                                np.polyval(self.Results['Fnk']['CreepLine'], self.Results['Fnk']['Stripping_Number']), 
                                ls='', marker='*', ms=12, color='b', label='Stripping Number')
-                self.axes.plot(self.Results['Fnk']['SIP'], self.Results['Fnk']['SIP_Yval_mm'], 
-                               ls='', marker='X', ms=12, color='m', label='SIP point (End point at max rutting)')
+                if self.Results['Fnk']['SIP'] is not None and not np.isnan(self.Results['Fnk']['SIP']):
+                    self.axes.plot(self.Results['Fnk']['SIP'], self.Results['Fnk']['SIP_Yval_mm'], 
+                                   ls='', marker='X', ms=12, color='m', label='SIP point (End point at max rutting)')
                 self.axes.legend()
                 if Passes.max() <= 20000:
                     self.axes.set_xlim([0, 20000])
@@ -1146,8 +1501,9 @@ class MainPage(QMainWindow):
                 self.axes.plot(self.Results['Fnk']['Stripping_Number'], 
                                np.polyval(self.Results['Fnk']['CreepLine'], self.Results['Fnk']['Stripping_Number']), 
                                ls='', marker='*', ms=12, color='b', label='Stripping Number')
-                self.axes.plot(self.Results['Fnk']['SIP_Adj'], self.Results['Fnk']['SIP_Adj_Yval_mm'], 
-                               ls='', marker='X', ms=12, color='m', label='SIP point (End point at 12.5 mm)')
+                if self.Results['Fnk']['SIP_Adj'] is not None and not np.isnan(self.Results['Fnk']['SIP_Adj']):
+                    self.axes.plot(self.Results['Fnk']['SIP_Adj'], self.Results['Fnk']['SIP_Adj_Yval_mm'], 
+                                   ls='', marker='X', ms=12, color='m', label='SIP point (End point at 12.5 mm)')
                 self.axes.plot([0, X_Threshold], [12.5, 12.5], ls=':', lw=0.5, color='k', label='12.5 mm threshold')
                 self.axes.legend(loc='upper left')
                 if Xmax <= 20000:
@@ -1313,6 +1669,23 @@ class MainPage(QMainWindow):
         # Return Nothing. 
         return
     # ------------------------------------------------------------------------------------------------------------------
+    def Function_Clear_Plot(self):
+        """
+        Clear the axes and reset the labels, limits, grid, etc. 
+        """
+        # Clear the plots.
+        self.axes.clear()
+        self.axes.set_xlabel('Number of passes', fontsize=10, fontweight='bold', color='k')
+        self.axes.set_ylabel('Rut depth (mm)', fontsize=10, fontweight='bold', color='k')
+        self.axes.grid(which='both', color='gray', alpha=0.1)
+        self.axes.set_xlim([0, 20000])
+        Xticks = self.axes.get_xticks()
+        self.axes.set_xticks(Xticks)
+        self.axes.set_xticklabels([f'{num:,.0f}' for num in Xticks])
+        self.axes.set_ylim([0, 10])
+        self.fig.set_constrained_layout(True)
+        self.canvas.draw()
+    # ------------------------------------------------------------------------------------------------------------------
     def Function_Button_RunAnalysis(self):
         """
         This function will run the HWTT analysis and calculates the required parameters, then update the graph, and the 
@@ -1361,6 +1734,10 @@ class MainPage(QMainWindow):
         self.Function_Update_Model_Fit_Analysis_Parameters()
         # Deactivate the Run analysis button. 
         self.Button_RunAnalysis.setEnabled(False)
+        self.CheckBox_GuideSNin2PP.setEnabled(False)
+        self.CheckBox_OffsetFirstRawData.setEnabled(False)
+        self.SpinBox_MinPassNumber.setEnabled(False)
+        self.SpinBox_MaxPassNumber.setEnabled(False)
         return
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Update_General_Information(self):
@@ -1383,9 +1760,9 @@ class MainPage(QMainWindow):
             self.ST03T1_DropDown_WheelSide.setCurrentIndex(2)
         else:
             self.ST03T1_DropDown_WheelSide.setCurrentIndex(3)
-        self.ST03T1_LineEdit_TargetTestTemp.setText(f'{float(self.Results["Props"]["Test_Temperature"]):.2f}')
-        self.ST03T1_LineEdit_AvgTestTemp.setText(f"{self.Results['Temperatures'].mean():.2f}")
-        self.ST03T1_LineEdit_StdTestTemp.setText(f"{self.Results['Temperatures'].std():.4f}")
+        self.ST03T1_LineEdit_TargetTestTemp.setText(self.fmt(float(self.Results["Props"]["Test_Temperature"]), '.2f'))
+        self.ST03T1_LineEdit_AvgTestTemp.setText(self.fmt(self.Results['Temperatures'].mean(), '.2f'))
+        self.ST03T1_LineEdit_StdTestTemp.setText(self.fmt(self.Results['Temperatures'].std(), '.4f'))
         self.ST03T1_DropDown_LabAging.setCurrentIndex(0)
         self.ST03T1_LineEdit_OtherComments.setText("")
         self.ST03T1_DropDown_LiftLocation.setCurrentIndex(0)
@@ -1403,192 +1780,192 @@ class MainPage(QMainWindow):
         # For the 2PP model. 
         # Fill for the first part power model. 
         self.ModelParam_Table.setItem(
-            0, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting_PowerModel_Coeff"][0]:,.6f}'))
+            0, 1, QTableWidgetItem(self.fmt(self.Results["2PP"]["Rutting_PowerModel_Coeff"][0], ',.6f')))
         self.ModelParam_Table.setItem(
-            1, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting_PowerModel_Coeff"][1]:,.6f}'))
+            1, 1, QTableWidgetItem(self.fmt(self.Results["2PP"]["Rutting_PowerModel_Coeff"][1], ',.6f')))
         # Fill the table for the Stripping number point (boundary point).
         self.ModelParam_Table.setItem(
-            2, 1, QTableWidgetItem(f'{self.Results["2PP"]["Stripping_Number"]:,.2f}'))
+            2, 1, QTableWidgetItem(self.fmt(self.Results["2PP"]["Stripping_Number"], ',.2f')))
         # Fill the table for the second part power model. 
         self.ModelParam_Table.setItem(
-            3, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting_PowerModel_Part2_Coeff"][0]:.6e}'))
+            3, 1, QTableWidgetItem(self.fmt(self.Results["2PP"]["Rutting_PowerModel_Part2_Coeff"][0], '.6e')))
         self.ModelParam_Table.setItem(
-            4, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting_PowerModel_Part2_Coeff"][1]:,.6f}'))
+            4, 1, QTableWidgetItem(self.fmt(self.Results["2PP"]["Rutting_PowerModel_Part2_Coeff"][1], ',.6f')))
         self.ModelParam_Table.setItem(
-            5, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting_PowerModel_Part2_Coeff"][2]:,.4f}'))
+            5, 1, QTableWidgetItem(self.fmt(self.Results["2PP"]["Rutting_PowerModel_Part2_Coeff"][2], ',.4f')))
         self.ModelParam_Table.setItem(
-            6, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting_PowerModel_Part2_Coeff"][3]:,.6f}'))
+            6, 1, QTableWidgetItem(self.fmt(self.Results["2PP"]["Rutting_PowerModel_Part2_Coeff"][3], ',.6f')))
         # Fill the analysis results. 
         self.AnalysisParam_Table.setItem(
-            0, 1, QTableWidgetItem(f'{self.Results["RutDepth"].max():,.3f}'))
+            0, 1, QTableWidgetItem(self.fmt(self.Results["RutDepth"].max(), ',.3f')))
         self.AnalysisParam_Table.setItem(
-            1, 1, QTableWidgetItem(f'{self.Results["Passes"].max():,d}'))
+            1, 1, QTableWidgetItem(self.fmt(int(self.Results["Passes"].max()), ',d')))
         self.AnalysisParam_Table.setItem(
-            2, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting@10k_mm"]:,.3f}'))
+            2, 1, QTableWidgetItem(self.fmt(self.Results["2PP"]["Rutting@10k_mm"], ',.3f')))
         self.AnalysisParam_Table.setItem(
-            3, 1, QTableWidgetItem(f'{self.Results["2PP"]["Rutting@20k_mm"]:,.3f}'))
+            3, 1, QTableWidgetItem(self.fmt(self.Results["2PP"]["Rutting@20k_mm"], ',.3f')))
         self.AnalysisParam_Table.setItem(
-            4, 1, QTableWidgetItem(f'{self.Results["2PP"]["Stripping_Rutting_mm"]:,.3f}'))
+            4, 1, QTableWidgetItem(self.fmt(self.Results["2PP"]["Stripping_Rutting_mm"], ',.3f')))
         self.AnalysisParam_Table.setItem(
-            5, 1, QTableWidgetItem(f'{self.Results["2PP"]["Stripping_Number"]:,.2f}'))        
+            5, 1, QTableWidgetItem(self.fmt(self.Results["2PP"]["Stripping_Number"], ',.2f')))        
         self.AnalysisParam_Table.setItem(
-            6, 1, QTableWidgetItem(f'{self.Results["2PP"]["SIP"]:,.2f}'))
+            6, 1, QTableWidgetItem(self.fmt(self.Results["2PP"]["SIP"], ',.2f')))
         self.AnalysisParam_Table.setItem(
-            7, 1, QTableWidgetItem(f'{self.Results["2PP"]["SIP_Yval_mm"]:,.3f}'))
+            7, 1, QTableWidgetItem(self.fmt(self.Results["2PP"]["SIP_Yval_mm"], ',.3f')))
         self.AnalysisParam_Table.setItem(
-            8, 1, QTableWidgetItem(f'{self.Results["2PP"]["SIP_Adj"]:,.2f}'))
+            8, 1, QTableWidgetItem(self.fmt(self.Results["2PP"]["SIP_Adj"], ',.2f')))
         self.AnalysisParam_Table.setItem(
-            9, 1, QTableWidgetItem(f'{self.Results["2PP"]["SIP_Adj_Yval_mm"]:,.3f}'))
+            9, 1, QTableWidgetItem(self.fmt(self.Results["2PP"]["SIP_Adj_Yval_mm"], ',.3f')))
         self.AnalysisParam_Table.setItem(
-            10, 1, QTableWidgetItem(f'{self.Results["2PP"]["CreepLine"][0]:.3e}'))
+            10, 1, QTableWidgetItem(self.fmt(self.Results["2PP"]["CreepLine"][0], '.3e')))
         self.AnalysisParam_Table.setItem(
-            11, 1, QTableWidgetItem(f'{self.Results["2PP"]["CreepLine"][1]:,.2f}'))
+            11, 1, QTableWidgetItem(self.fmt(self.Results["2PP"]["CreepLine"][1], ',.2f')))
         self.AnalysisParam_Table.setItem(
-            12, 1, QTableWidgetItem(f'{self.Results["2PP"]["TangentLine"][0]:.3e}'))
+            12, 1, QTableWidgetItem(self.fmt(self.Results["2PP"]["TangentLine"][0], '.3e')))
         self.AnalysisParam_Table.setItem(
-            13, 1, QTableWidgetItem(f'{self.Results["2PP"]["TangentLine"][0]:,.2f}'))
+            13, 1, QTableWidgetItem(self.fmt(self.Results["2PP"]["TangentLine"][0], ',.2f')))
         self.AnalysisParam_Table.setItem(
-            14, 1, QTableWidgetItem(f'{self.Results["2PP"]["TangentLine_Adj"][0]:.3e}'))
+            14, 1, QTableWidgetItem(self.fmt(self.Results["2PP"]["TangentLine_Adj"][0], '.3e')))
         self.AnalysisParam_Table.setItem(
-            15, 1, QTableWidgetItem(f'{self.Results["2PP"]["TangentLine_Adj"][0]:,.2f}'))
+            15, 1, QTableWidgetItem(self.fmt(self.Results["2PP"]["TangentLine_Adj"][0], ',.2f')))
         # ------------------------------------------------------------
         # For the Francken model. 
         # Model parameters. 
         self.ModelParam_Fnk_Table.setItem(
-            0, 1, QTableWidgetItem(f'{self.Results["Fnk"]["Rutting_Francken_Coeff"][0]:.6e}'))
+            0, 1, QTableWidgetItem(self.fmt(self.Results["Fnk"]["Rutting_Francken_Coeff"][0], '.6e')))
         self.ModelParam_Fnk_Table.setItem(
-            1, 1, QTableWidgetItem(f'{self.Results["Fnk"]["Rutting_Francken_Coeff"][1]:.6e}'))
+            1, 1, QTableWidgetItem(self.fmt(self.Results["Fnk"]["Rutting_Francken_Coeff"][1], '.6e')))
         self.ModelParam_Fnk_Table.setItem(
-            2, 1, QTableWidgetItem(f'{self.Results["Fnk"]["Rutting_Francken_Coeff"][2]:.6e}'))
+            2, 1, QTableWidgetItem(self.fmt(self.Results["Fnk"]["Rutting_Francken_Coeff"][2], '.6e')))
         self.ModelParam_Fnk_Table.setItem(
-            3, 1, QTableWidgetItem(f'{self.Results["Fnk"]["Rutting_Francken_Coeff"][3]:.6e}'))
+            3, 1, QTableWidgetItem(self.fmt(self.Results["Fnk"]["Rutting_Francken_Coeff"][3], '.6e')))
         # Analysis parameters. 
         self.AnalysisParam_Fnk_Table.setItem(
-            0, 1, QTableWidgetItem(f'{self.Results["Fnk"]["Maximum_Rutting_mm"]:,.3f}'))
+            0, 1, QTableWidgetItem(self.fmt(self.Results["Fnk"]["Maximum_Rutting_mm"], ',.3f')))
         self.AnalysisParam_Fnk_Table.setItem(
-            1, 1, QTableWidgetItem(f'{self.Results["Fnk"]["Maximum_Passes"]:,d}'))
+            1, 1, QTableWidgetItem(self.fmt(int(self.Results["Fnk"]["Maximum_Passes"]), ',d')))
         self.AnalysisParam_Fnk_Table.setItem(
-            2, 1, QTableWidgetItem(f'{self.Results["Fnk"]["Rutting@10k_mm"]:,.3f}'))
+            2, 1, QTableWidgetItem(self.fmt(self.Results["Fnk"]["Rutting@10k_mm"], ',.3f')))
         self.AnalysisParam_Fnk_Table.setItem(
-            3, 1, QTableWidgetItem(f'{self.Results["Fnk"]["Rutting@20k_mm"]:,.3f}'))
+            3, 1, QTableWidgetItem(self.fmt(self.Results["Fnk"]["Rutting@20k_mm"], ',.3f')))
         self.AnalysisParam_Fnk_Table.setItem(
-            4, 1, QTableWidgetItem(f'{self.Results["Fnk"]["Stripping_Rutting_mm"]:.3f}'))
+            4, 1, QTableWidgetItem(self.fmt(self.Results["Fnk"]["Stripping_Rutting_mm"], '.3f')))
         self.AnalysisParam_Fnk_Table.setItem(
-            5, 1, QTableWidgetItem(f'{self.Results["Fnk"]["Stripping_Number"]:,.2f}'))
+            5, 1, QTableWidgetItem(self.fmt(self.Results["Fnk"]["Stripping_Number"], ',.2f')))
         self.AnalysisParam_Fnk_Table.setItem(
-            6, 1, QTableWidgetItem(f'{self.Results["Fnk"]["SIP"]:,.2f}'))
+            6, 1, QTableWidgetItem(self.fmt(self.Results["Fnk"]["SIP"], ',.2f')))
         self.AnalysisParam_Fnk_Table.setItem(
-            7, 1, QTableWidgetItem(f'{self.Results["Fnk"]["SIP_Yval_mm"]:,.3f}'))
+            7, 1, QTableWidgetItem(self.fmt(self.Results["Fnk"]["SIP_Yval_mm"], ',.3f')))
         self.AnalysisParam_Fnk_Table.setItem(
-            8, 1, QTableWidgetItem(f'{self.Results["Fnk"]["SIP_Adj"]:,.2f}'))
+            8, 1, QTableWidgetItem(self.fmt(self.Results["Fnk"]["SIP_Adj"], ',.2f')))
         self.AnalysisParam_Fnk_Table.setItem(
-            9, 1, QTableWidgetItem(f'{self.Results["Fnk"]["SIP_Adj_Yval_mm"]:,.3f}'))
+            9, 1, QTableWidgetItem(self.fmt(self.Results["Fnk"]["SIP_Adj_Yval_mm"], ',.3f')))
         self.AnalysisParam_Fnk_Table.setItem(
-            10, 1, QTableWidgetItem(f'{self.Results["Fnk"]["CreepLine"][0]:.3e}'))
+            10, 1, QTableWidgetItem(self.fmt(self.Results["Fnk"]["CreepLine"][0], '.3e')))
         self.AnalysisParam_Fnk_Table.setItem(
-            11, 1, QTableWidgetItem(f'{self.Results["Fnk"]["CreepLine"][1]:,.3f}'))
+            11, 1, QTableWidgetItem(self.fmt(self.Results["Fnk"]["CreepLine"][1], ',.3f')))
         self.AnalysisParam_Fnk_Table.setItem(
-            12, 1, QTableWidgetItem(f'{self.Results["Fnk"]["TangentLine"][0]:.3e}'))
+            12, 1, QTableWidgetItem(self.fmt(self.Results["Fnk"]["TangentLine"][0], '.3e')))
         self.AnalysisParam_Fnk_Table.setItem(
-            13, 1, QTableWidgetItem(f'{self.Results["Fnk"]["TangentLine"][1]:,.3f}'))
+            13, 1, QTableWidgetItem(self.fmt(self.Results["Fnk"]["TangentLine"][1], ',.3f')))
         self.AnalysisParam_Fnk_Table.setItem(
-            14, 1, QTableWidgetItem(f'{self.Results["Fnk"]["TangentLine_Adj"][0]:.3e}'))
+            14, 1, QTableWidgetItem(self.fmt(self.Results["Fnk"]["TangentLine_Adj"][0], '.3e')))
         self.AnalysisParam_Fnk_Table.setItem(
-            15, 1, QTableWidgetItem(f'{self.Results["Fnk"]["TangentLine_Adj"][1]:,.3f}'))
+            15, 1, QTableWidgetItem(self.fmt(self.Results["Fnk"]["TangentLine_Adj"][1], ',.3f')))
         # ------------------------------------------------------------
         # For the Yin model. 
         # Model parameters. 
         self.ModelParam_Yin_Table.setItem(
-            0, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step1_Coeff"][0]:,.6f}'))
+            0, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["Rutting_Step1_Coeff"][0], ',.6f')))
         self.ModelParam_Yin_Table.setItem(
-            1, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step1_Coeff"][1]:,.6f}'))
+            1, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["Rutting_Step1_Coeff"][1], ',.6f')))
         self.ModelParam_Yin_Table.setItem(
-            2, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step1_Coeff"][2]:,.6f}'))
+            2, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["Rutting_Step1_Coeff"][2], ',.6f')))
         self.ModelParam_Yin_Table.setItem(
-            3, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step2_Coeff"][0]:,.6f}'))
+            3, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["Rutting_Step2_Coeff"][0], ',.6f')))
         self.ModelParam_Yin_Table.setItem(
-            4, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step2_Coeff"][1]:,.6f}'))
+            4, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["Rutting_Step2_Coeff"][1], ',.6f')))
         self.ModelParam_Yin_Table.setItem(
-            5, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step2_Coeff"][2]:,.6f}'))
+            5, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["Rutting_Step2_Coeff"][2], ',.6f')))
         self.ModelParam_Yin_Table.setItem(
-            6, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step3_Coeff"][0]:,.6f}'))
+            6, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["Rutting_Step3_Coeff"][0], ',.6f')))
         self.ModelParam_Yin_Table.setItem(
-            7, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting_Step3_Coeff"][1]:,.6f}'))
+            7, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["Rutting_Step3_Coeff"][1], ',.6f')))
         self.ModelParam_Yin_Table.setItem(
-            8, 1, QTableWidgetItem(f'{self.Results["Yin"]["Stripping_Number"]:,.2f}'))
+            8, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["Stripping_Number"], ',.2f')))
         # Analysis parameters. 
         self.AnalysisParam_Yin_Table.setItem(
-            0, 1, QTableWidgetItem(f'{self.Results["Yin"]["Maximum_Rutting_mm"]:,.3f}'))
+            0, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["Maximum_Rutting_mm"], ',.3f')))
         self.AnalysisParam_Yin_Table.setItem(
-            1, 1, QTableWidgetItem(f'{self.Results["Yin"]["Maximum_Passes"]:,d}'))
+            1, 1, QTableWidgetItem(self.fmt(int(self.Results["Yin"]["Maximum_Passes"]), ',d')))
         self.AnalysisParam_Yin_Table.setItem(
-            2, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting@10k_mm"]:,.3f}'))
+            2, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["Rutting@10k_mm"], ',.3f')))
         self.AnalysisParam_Yin_Table.setItem(
-            3, 1, QTableWidgetItem(f'{self.Results["Yin"]["Rutting@20k_mm"]:,.3f}'))
+            3, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["Rutting@20k_mm"], ',.3f')))
         self.AnalysisParam_Yin_Table.setItem(
-            4, 1, QTableWidgetItem(f'{self.Results["Yin"]["LCSN"]:,.2f}'))
+            4, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["LCSN"], ',.2f')))
         self.AnalysisParam_Yin_Table.setItem(
-            5, 1, QTableWidgetItem(f'{self.Results["Yin"]["LCST"]:,.2f}'))
+            5, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["LCST"], ',.2f')))
         self.AnalysisParam_Yin_Table.setItem(
-            6, 1, QTableWidgetItem(f'{self.Results["Yin"]["DeltaEps@10k"]:,.6f}'))
+            6, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["DeltaEps@10k"], ',.6f')))
         self.AnalysisParam_Yin_Table.setItem(
-            7, 1, QTableWidgetItem(f'{self.Results["Yin"]["Stripping_Rutting_mm"]:,.3f}'))
+            7, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["Stripping_Rutting_mm"], ',.3f')))
         self.AnalysisParam_Yin_Table.setItem(
-            8, 1, QTableWidgetItem(f'{self.Results["Yin"]["Stripping_Number"]:,.2f}'))
+            8, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["Stripping_Number"], ',.2f')))
         self.AnalysisParam_Yin_Table.setItem(
-            9, 1, QTableWidgetItem(f'{self.Results["Yin"]["SIP"]:,.2f}'))
+            9, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["SIP"], ',.2f')))
         self.AnalysisParam_Yin_Table.setItem(
-            10, 1, QTableWidgetItem(f'{self.Results["Yin"]["SIP_Yval_mm"]:,.3f}'))
+            10, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["SIP_Yval_mm"], ',.3f')))
         self.AnalysisParam_Yin_Table.setItem(
-            11, 1, QTableWidgetItem(f'{self.Results["Yin"]["SIP_Adj"]:,.2f}'))
+            11, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["SIP_Adj"], ',.2f')))
         self.AnalysisParam_Yin_Table.setItem(
-            12, 1, QTableWidgetItem(f'{self.Results["Yin"]["SIP_Adj_Yval_mm"]:,.3f}'))
+            12, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["SIP_Adj_Yval_mm"], ',.3f')))
         self.AnalysisParam_Yin_Table.setItem(
-            13, 1, QTableWidgetItem(f'{self.Results["Yin"]["CreepLine"][0]:.3e}'))
+            13, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["CreepLine"][0], '.3e')))
         self.AnalysisParam_Yin_Table.setItem(
-            14, 1, QTableWidgetItem(f'{self.Results["Yin"]["CreepLine"][1]:,.2f}'))
+            14, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["CreepLine"][1], ',.2f')))
         self.AnalysisParam_Yin_Table.setItem(
-            15, 1, QTableWidgetItem(f'{self.Results["Yin"]["TangentLine"][0]:.3e}'))
+            15, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["TangentLine"][0], '.3e')))
         self.AnalysisParam_Yin_Table.setItem(
-            16, 1, QTableWidgetItem(f'{self.Results["Yin"]["TangentLine"][1]:,.2f}'))
+            16, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["TangentLine"][1], ',.2f')))
         self.AnalysisParam_Yin_Table.setItem(
-            17, 1, QTableWidgetItem(f'{self.Results["Yin"]["TangentLine_Adj"][0]:.3e}'))
+            17, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["TangentLine_Adj"][0], '.3e')))
         self.AnalysisParam_Yin_Table.setItem(
-            18, 1, QTableWidgetItem(f'{self.Results["Yin"]["TangentLine_Adj"][1]:,.2f}'))
+            18, 1, QTableWidgetItem(self.fmt(self.Results["Yin"]["TangentLine_Adj"][1], ',.2f')))
         # ------------------------------------------------------------
         # For the 6th degree polynomial model. 
         # Model parameters. 
         self.ModelParam_6deg_Table.setItem(
-            0, 1, QTableWidgetItem(f'{self.Results["6deg"]["Rutting_6degPolynomial_Coeff"][0]:.3e}'))
+            0, 1, QTableWidgetItem(self.fmt(self.Results["6deg"]["Rutting_6degPolynomial_Coeff"][0], '.3e')))
         self.ModelParam_6deg_Table.setItem(
-            1, 1, QTableWidgetItem(f'{self.Results["6deg"]["Rutting_6degPolynomial_Coeff"][1]:.3e}'))
+            1, 1, QTableWidgetItem(self.fmt(self.Results["6deg"]["Rutting_6degPolynomial_Coeff"][1], '.3e')))
         self.ModelParam_6deg_Table.setItem(
-            2, 1, QTableWidgetItem(f'{self.Results["6deg"]["Rutting_6degPolynomial_Coeff"][2]:.3e}'))
+            2, 1, QTableWidgetItem(self.fmt(self.Results["6deg"]["Rutting_6degPolynomial_Coeff"][2], '.3e')))
         self.ModelParam_6deg_Table.setItem(
-            3, 1, QTableWidgetItem(f'{self.Results["6deg"]["Rutting_6degPolynomial_Coeff"][3]:.3e}'))
+            3, 1, QTableWidgetItem(self.fmt(self.Results["6deg"]["Rutting_6degPolynomial_Coeff"][3], '.3e')))
         self.ModelParam_6deg_Table.setItem(
-            4, 1, QTableWidgetItem(f'{self.Results["6deg"]["Rutting_6degPolynomial_Coeff"][4]:.3e}'))
+            4, 1, QTableWidgetItem(self.fmt(self.Results["6deg"]["Rutting_6degPolynomial_Coeff"][4], '.3e')))
         self.ModelParam_6deg_Table.setItem(
-            5, 1, QTableWidgetItem(f'{self.Results["6deg"]["Rutting_6degPolynomial_Coeff"][5]:.3e}'))
+            5, 1, QTableWidgetItem(self.fmt(self.Results["6deg"]["Rutting_6degPolynomial_Coeff"][5], '.3e')))
         self.ModelParam_6deg_Table.setItem(
-            6, 1, QTableWidgetItem(f'{self.Results["6deg"]["Rutting_6degPolynomial_Coeff"][6]:.3e}'))
+            6, 1, QTableWidgetItem(self.fmt(self.Results["6deg"]["Rutting_6degPolynomial_Coeff"][6], '.3e')))
         # Analysis parameters. 
         self.AnalysisParam_6deg_Table.setItem(
-            0, 1, QTableWidgetItem(f'{self.Results["6deg"]["Maximum_Rutting_mm"]:,.3f}'))
+            0, 1, QTableWidgetItem(self.fmt(self.Results["6deg"]["Maximum_Rutting_mm"], ',.3f')))
         self.AnalysisParam_6deg_Table.setItem(
-            1, 1, QTableWidgetItem(f'{self.Results["6deg"]["Maximum_Passes"]:,d}'))
+            1, 1, QTableWidgetItem(self.fmt(int(self.Results["6deg"]["Maximum_Passes"]), ',d')))
         self.AnalysisParam_6deg_Table.setItem(
-            2, 1, QTableWidgetItem(f'{self.Results["6deg"]["Rutting@10k_mm"]:,.3f}'))
+            2, 1, QTableWidgetItem(self.fmt(self.Results["6deg"]["Rutting@10k_mm"], ',.3f')))
         self.AnalysisParam_6deg_Table.setItem(
-            3, 1, QTableWidgetItem(f'{self.Results["6deg"]["Rutting@20k_mm"]:,.3f}'))
+            3, 1, QTableWidgetItem(self.fmt(self.Results["6deg"]["Rutting@20k_mm"], ',.3f')))
         self.AnalysisParam_6deg_Table.setItem(
-            4, 1, QTableWidgetItem(f'{self.Results["6deg"]["Stripping_Rutting_mm"]:,.3f}'))
+            4, 1, QTableWidgetItem(self.fmt(self.Results["6deg"]["Stripping_Rutting_mm"], ',.3f')))
         self.AnalysisParam_6deg_Table.setItem(
-            5, 1, QTableWidgetItem(f'{self.Results["6deg"]["Stripping_Number"]:,.2f}'))
+            5, 1, QTableWidgetItem(self.fmt(self.Results["6deg"]["Stripping_Number"], ',.2f')))
         self.AnalysisParam_6deg_Table.setItem(
-            6, 1, QTableWidgetItem(f'{self.Results["6deg"]["CreepLine"][0]:,.4f}'))
+            6, 1, QTableWidgetItem(self.fmt(self.Results["6deg"]["CreepLine"][0], ',.4f')))
         self.AnalysisParam_6deg_Table.setItem(
-            7, 1, QTableWidgetItem(f'{self.Results["6deg"]["CreepLine"][1]:,.2f}'))
+            7, 1, QTableWidgetItem(self.fmt(self.Results["6deg"]["CreepLine"][1], ',.2f')))
         # Update the tab widget with the 2PP analysis results tab. 
         self.SectT03_TabWidget.setCurrentIndex(2)
     # ------------------------------------------------------------------------------------------------------------------
@@ -1602,10 +1979,6 @@ class MainPage(QMainWindow):
             return
         # --------------------------------------------------------------------------------------------------------------
         # Submit data to DB. 
-        # Preparing the rep number. 
-        self.cursor.execute("SELECT COUNT(*) FROM HWTT WHERE Bnumber = ? AND Lab_Aging = ?;", 
-                            (int(self.ST03T1_LineEdit_BNumber.text()), self.ST03T1_DropDown_LabAging.currentText()))
-        RepNumber = self.cursor.fetchone()[0] + 1
         # Preparing the data in binary form. 
         RutData, RutData_shape, RutData_dtype = Array_to_Binary(np.vstack((self.Results['Passes'], 
                                                                            self.Results['RutDepth'], 
@@ -1615,8 +1988,32 @@ class MainPage(QMainWindow):
             LaneNumber = int(self.ST03T1_LineEdit_LaneNumber.text())
         except:
             LaneNumber = -1
+        # Preparing the rep number and database adjustment function. 
+        if self.shared_data.data == -1:
+            self.cursor.execute("SELECT COUNT(*) FROM HWTT WHERE Bnumber = ? AND Lab_Aging = ?;", 
+                                (int(self.ST03T1_LineEdit_BNumber.text()), self.ST03T1_DropDown_LabAging.currentText()))
+            RepNumber = self.cursor.fetchone()[0] + 1
+            DB_Function = Append_to_Database
+        else:
+            ID = int(self.shared_data.data)
+            self.cursor.execute("SELECT id, RepNumber FROM HWTT WHERE Bnumber = ? AND Lab_Aging = ? AND id != ?;", 
+                                (int(self.ST03T1_LineEdit_BNumber.text()), 
+                                 self.ST03T1_DropDown_LabAging.currentText(), ID))
+            Reps = np.array([num[1] for num in self.cursor.fetchall()])
+            if len(Reps) == 0:
+                RepNumber = 1
+            else:
+                for ii in range(1, max(Reps) + 2):
+                    if ii not in Reps:
+                        RepNumber = int(ii)
+                        break
+            DB_Function = Update_Database
+        # Check the options. 
+        Is2PPGuided = 1 if self.CheckBox_GuideSNin2PP.isChecked() else 0
+        IsOffset = 1 if self.CheckBox_OffsetFirstRawData.isChecked() else 0
+        # -----------------------------------
         # Append the data to the database. 
-        Append_to_Database(self.conn, self.cursor, {
+        DB_Function(self.conn, self.cursor, self.shared_data.data, {
             "Bnumber": int(self.ST03T1_LineEdit_BNumber.text()), 
             "Lane_Num": LaneNumber,
             "Lab_Aging": self.ST03T1_DropDown_LabAging.currentText(), 
@@ -1693,6 +2090,27 @@ class MainPage(QMainWindow):
             "Poly6_StrippingNumber": self.Results["6deg"]["Stripping_Number"], 
             "Poly6_CreepLine_Slope": self.Results["6deg"]["CreepLine"][0], 
             "Poly6_CreepLine_Intercept": self.Results["6deg"]["CreepLine"][1], 
+            "Fnk_Max_Rut_mm": self.Results["Fnk"]["Maximum_Rutting_mm"], 
+            "Fnk_Max_Pass": self.Results["Fnk"]["Maximum_Passes"], 
+            "Fnk_RuttingAt10k_mm": self.Results["Fnk"]["Rutting@10k_mm"], 
+            "Fnk_RuttingAt20k_mm": self.Results["Fnk"]["Rutting@20k_mm"], 
+            "Fnk_ModelCoeff_A": self.Results["Fnk"]["Rutting_Francken_Coeff"][0], 
+            "Fnk_ModelCoeff_B": self.Results["Fnk"]["Rutting_Francken_Coeff"][1], 
+            "Fnk_ModelCoeff_C": self.Results["Fnk"]["Rutting_Francken_Coeff"][2], 
+            "Fnk_ModelCoeff_D": self.Results["Fnk"]["Rutting_Francken_Coeff"][3], 
+            "Fnk_Stripping_Rutting_mm": self.Results["Fnk"]["Stripping_Rutting_mm"], 
+            "Fnk_Stripping_Rutting_Pass": self.Results["Fnk"]["Stripping_Rutting_Pass"], 
+            "Fnk_SIP": self.Results["Fnk"]["SIP"], 
+            "Fnk_SIP_Yvalue": self.Results["Fnk"]["SIP_Yval_mm"], 
+            "Fnk_SIP_Adj": self.Results["Fnk"]["SIP_Adj"], 
+            "Fnk_SIP_Adj_Yvalue": self.Results["Fnk"]["SIP_Adj_Yval_mm"], 
+            "Fnk_StrippingNumber": self.Results["Fnk"]["Stripping_Number"], 
+            "Fnk_CreepLine_Slope": self.Results["Fnk"]["CreepLine"][0], 
+            "Fnk_CreepLine_Intercept": self.Results["Fnk"]["CreepLine"][1], 
+            "Fnk_StrippingLine_Slope": self.Results["Fnk"]["TangentLine"][0], 
+            "Fnk_StrippingLine_Intercept": self.Results["Fnk"]["TangentLine"][1], 
+            "Fnk_StrippingLine_Slope_Adj": self.Results["Fnk"]["TangentLine_Adj"][0], 
+            "Fnk_StrippingLine_Intercept_Adj": self.Results["Fnk"]["TangentLine_Adj"][1], 
             "Valid_Min_Pass": self.SpinBox_MinPassNumber.value(), "Valid_Max_Pass": self.SpinBox_MaxPassNumber.value(), 
             "Test_Name": self.ST03T1_LineEdit_TestName.text(), 
             "Technician_Name": self.ST03T1_LineEdit_TechnicianName.text(), 
@@ -1702,23 +2120,30 @@ class MainPage(QMainWindow):
             "Target_Test_Temperature": float(self.ST03T1_LineEdit_TargetTestTemp.text()), 
             "Avg_Test_Temperature": float(self.ST03T1_LineEdit_AvgTestTemp.text()), 
             "Std_Test_Temperature": float(self.ST03T1_LineEdit_StdTestTemp.text()), 
-            "Other_Comments": self.ST03T1_LineEdit_OtherComments.text(), "IsOutlier": 0
+            "Other_Comments": self.ST03T1_LineEdit_OtherComments.text(), "IsOutlier": 0,
+            "Is2PPGuided": Is2PPGuided, "IsOffset": IsOffset,
             })
         # --------------------------------------------------------------------------------------------------------------
-        # Update the index and check for end of the process. 
-        self.CurrentFileIndex += 1
-        Check = self.Function_Check_End_of_Loop()
-        if Check:
+        if self.shared_data.data == -1:
+            # Update the index and check for end of the process. 
+            self.CurrentFileIndex += 1
+            Check = self.Function_Check_End_of_Loop()
+            if Check:
+                return
+            self.SpinBox_MaxPassNumber.setRange(10, 20001)
+            self.SpinBox_MinPassNumber.setRange(0, 19980)
+            self.SpinBox_MaxPassNumber.setValue(20000)
+            self.SpinBox_MinPassNumber.setValue(0)
+            # ----------------------------------------------------------------------------------------------------------
+            # Update the plots and everything. 
+            self.Function_Renew_MainPlot_For_Next_File()
+            # Return Nothing.
             return
-        self.SpinBox_MaxPassNumber.setRange(10, 20001)
-        self.SpinBox_MinPassNumber.setRange(0, 19980)
-        self.SpinBox_MaxPassNumber.setValue(20000)
-        self.SpinBox_MinPassNumber.setValue(0)
-        # --------------------------------------------------------------------------------------------------------------
-        # Update the plots and everything. 
-        self.Function_Renew_MainPlot_For_Next_File()
-        # Return Nothing.
-        return
+        else:
+            # Move to the Review Page. 
+            self.stack.setCurrentIndex(1)
+            # Return Nothing. 
+            return
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Button_FailResult(self):
         """
@@ -1730,10 +2155,6 @@ class MainPage(QMainWindow):
             return
         # --------------------------------------------------------------------------------------------------------------
         # Submit data to DB. 
-        # Preparing the rep number. 
-        self.cursor.execute("SELECT COUNT(*) FROM HWTT WHERE Bnumber = ? AND Lab_Aging = ?;", 
-                            (int(self.ST03T1_LineEdit_BNumber.text()), self.ST03T1_DropDown_LabAging.currentText()))
-        RepNumber = self.cursor.fetchone()[0] + 1
         # Preparing the data in binary form. 
         RutData, RutData_shape, RutData_dtype = Array_to_Binary(np.vstack((self.Results['Passes'], 
                                                                            self.Results['RutDepth'], 
@@ -1743,7 +2164,32 @@ class MainPage(QMainWindow):
             LaneNumber = int(self.ST03T1_LineEdit_LaneNumber.text())
         except:
             LaneNumber = -1
-        Append_to_Database(self.conn, self.cursor, {
+        # Preparing the rep number and database adjustment function. 
+        if self.shared_data.data == -1:
+            self.cursor.execute("SELECT COUNT(*) FROM HWTT WHERE Bnumber = ? AND Lab_Aging = ?;", 
+                                (int(self.ST03T1_LineEdit_BNumber.text()), self.ST03T1_DropDown_LabAging.currentText()))
+            RepNumber = self.cursor.fetchone()[0] + 1
+            DB_Function = Append_to_Database
+        else:
+            ID = int(self.shared_data.data)
+            self.cursor.execute("SELECT id, RepNumber FROM HWTT WHERE Bnumber = ? AND Lab_Aging = ? AND id != ?;", 
+                                (int(self.ST03T1_LineEdit_BNumber.text()), 
+                                 self.ST03T1_DropDown_LabAging.currentText(), ID))
+            Reps = np.array([num[1] for num in self.cursor.fetchall()])
+            if len(Reps) == 0:
+                RepNumber = 1
+            else:
+                for ii in range(1, max(Reps) + 2):
+                    if ii not in Reps:
+                        RepNumber = int(ii)
+                        break
+            DB_Function = Update_Database
+        # Check the options. 
+        Is2PPGuided = 1 if self.CheckBox_GuideSNin2PP.isChecked() else 0
+        IsOffset = 1 if self.CheckBox_OffsetFirstRawData.isChecked() else 0
+        # ---------------------
+        # Update the database.
+        DB_Function(self.conn, self.cursor, self.shared_data.data, {
             "Bnumber": int(self.ST03T1_LineEdit_BNumber.text()), 
             "Lane_Num": LaneNumber,
             "Lab_Aging": self.ST03T1_DropDown_LabAging.currentText(), 
@@ -1777,6 +2223,13 @@ class MainPage(QMainWindow):
             "Poly6_ModelCoeff_a4": -1, "Poly6_ModelCoeff_a5": -1, "Poly6_ModelCoeff_a6": -1, 
             "Poly6_Stripping_Rutting_mm": -1, "Poly6_Stripping_Rutting_Pass": -1, "Poly6_StrippingNumber": -1, 
             "Poly6_CreepLine_Slope": -1, "Poly6_CreepLine_Intercept": -1, 
+            "Fnk_Max_Rut_mm": -1, "Fnk_Max_Pass": -1, "Fnk_RuttingAt10k_mm": -1, "Fnk_RuttingAt20k_mm": -1, 
+            "Fnk_ModelCoeff_A": -1, "Fnk_ModelCoeff_B": -1, "Fnk_ModelCoeff_C": -1, "Fnk_ModelCoeff_D": -1, 
+            "Fnk_Stripping_Rutting_mm": -1, "Fnk_Stripping_Rutting_Pass": -1, 
+            "Fnk_SIP": -1, "Fnk_SIP_Yvalue": -1, "Fnk_SIP_Adj": -1, "Fnk_SIP_Adj_Yvalue": -1, 
+            "Fnk_StrippingNumber": -1, "Fnk_CreepLine_Slope": -1, "Fnk_CreepLine_Intercept": -1, 
+            "Fnk_StrippingLine_Slope": -1, "Fnk_StrippingLine_Intercept": -1, 
+            "Fnk_StrippingLine_Slope_Adj": -1, "Fnk_StrippingLine_Intercept_Adj": -1, 
             "Valid_Min_Pass": self.SpinBox_MinPassNumber.value(), "Valid_Max_Pass": self.SpinBox_MaxPassNumber.value(), 
             "Test_Name": self.ST03T1_LineEdit_TestName.text(), 
             "Technician_Name": self.ST03T1_LineEdit_TechnicianName.text(), 
@@ -1786,23 +2239,30 @@ class MainPage(QMainWindow):
             "Target_Test_Temperature": float(self.ST03T1_LineEdit_TargetTestTemp.text()), 
             "Avg_Test_Temperature": float(self.ST03T1_LineEdit_AvgTestTemp.text()), 
             "Std_Test_Temperature": float(self.ST03T1_LineEdit_StdTestTemp.text()), 
-            "Other_Comments": self.ST03T1_LineEdit_OtherComments.text(), "IsOutlier": 1
+            "Other_Comments": self.ST03T1_LineEdit_OtherComments.text(), "IsOutlier": 1, 
+            "Is2PPGuided": Is2PPGuided, "IsOffset": IsOffset, 
             })
         # --------------------------------------------------------------------------------------------------------------
-        # Update the index and check for end of the process. 
-        self.CurrentFileIndex += 1
-        Check = self.Function_Check_End_of_Loop()
-        if Check:
+        if self.shared_data.data == -1:
+            # Update the index and check for end of the process. 
+            self.CurrentFileIndex += 1
+            Check = self.Function_Check_End_of_Loop()
+            if Check:
+                return
+            self.SpinBox_MaxPassNumber.setRange(10, 20001)
+            self.SpinBox_MinPassNumber.setRange(0, 19980)
+            self.SpinBox_MaxPassNumber.setValue(20000)
+            self.SpinBox_MinPassNumber.setValue(0)
+            # ----------------------------------------------------------------------------------------------------------
+            # Update the plots and everything. 
+            self.Function_Renew_MainPlot_For_Next_File()
+            # Return Nothing.
             return
-        self.SpinBox_MaxPassNumber.setRange(10, 20001)
-        self.SpinBox_MinPassNumber.setRange(0, 19980)
-        self.SpinBox_MaxPassNumber.setValue(20000)
-        self.SpinBox_MinPassNumber.setValue(0)
-        # --------------------------------------------------------------------------------------------------------------
-        # Update the plots and everything. 
-        self.Function_Renew_MainPlot_For_Next_File()
-        # Return Nothing.
-        return
+        else:
+            # Move to the Review Page. 
+            self.stack.setCurrentIndex(1)
+            # Return Nothing. 
+            return
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Check_Before_Submit_to_DB(self):
         """
@@ -1872,25 +2332,15 @@ class MainPage(QMainWindow):
         if self.CurrentFileIndex >= len(self.CurrentFileList):
             QMessageBox.information(self, "Success", f"Loop over {len(self.CurrentFileList)} files has been finished!")
             # Clear the plots.
-            self.axes.clear()
-            self.axes.set_xlabel('Number of passes', fontsize=10, fontweight='bold', color='k')
-            self.axes.set_ylabel('Rut depth (mm)', fontsize=10, fontweight='bold', color='k')
-            self.axes.grid(which='both', color='gray', alpha=0.1)
-            self.axes.set_xlim([0, 20000])
-            Xticks = self.axes.get_xticks()
-            self.axes.set_xticks(Xticks)
-            self.axes.set_xticklabels([f'{num:,.0f}' for num in Xticks])
-            self.axes.set_ylim([0, 10])
-            self.fig.set_constrained_layout(True)
-            self.canvas.draw()
+            self.Function_Clear_Plot()
             # Empty the result tabs.
             self.SectT03_TabWidget.setCurrentIndex(0)
             self.SectT03_TabWidget.setEnabled(False)
             self.ST03T1_LineEdit_TestName.setText('')
             self.ST03T1_LineEdit_TestDate.setText('')
             self.ST03T1_LineEdit_TestTime.setText('')
-            self.ST03T1_DropDown_TestCondition.setCurrentIndex(2)
-            self.ST03T1_DropDown_WheelSide.setCurrentIndex(2)
+            self.ST03T1_DropDown_TestCondition.setCurrentIndex(0)
+            self.ST03T1_DropDown_WheelSide.setCurrentIndex(0)
             self.ST03T1_LineEdit_TargetTestTemp.setText('')
             self.ST03T1_LineEdit_AvgTestTemp.setText('')
             self.ST03T1_LineEdit_StdTestTemp.setText('')
@@ -2166,11 +2616,13 @@ class MainPage(QMainWindow):
         if not FilePath:
             QMessageBox.critical(self, "Save as Failed!", 
                                  f"The directory and file name was not selected! Please try again.") 
+            return
         # Check if the directory is valid. 
         if not os.path.isdir(os.path.dirname(FilePath)):
             QMessageBox.critical(self, "Save as Failed!", 
                                  f"Selected directory is NOT existed or permission denied.\nSelected directory: " + 
                                  f'"{os.path.dirname(FilePath)}"') 
+            return
         try:
             if 'png' in SelectedFilter.lower():
                 self.fig.savefig(FilePath, format='png', dpi=1200)
@@ -2189,6 +2641,7 @@ class MainPage(QMainWindow):
         except Exception as err:
             QMessageBox.critical(self, "Save as Failed!", 
                                  f"Error occurred during save as process.\nError: {err}") 
+            return
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Menu_License(self):
         """
@@ -2200,6 +2653,214 @@ class MainPage(QMainWindow):
         if not msg_box.exec_() == QDialog.Accepted:
             # Closing the whole program. 
             sys.exit()
+    # ------------------------------------------------------------------------------------------------------------------
+    def Function_Rerun_Database(self):
+        """
+        This function will go through all data within the Database, and rerun the analysis (all models) for the test 
+        result. It only skipped the rows of data which are already identified as outlier by the user. 
+        """
+        # Get the index of the rows which are not Outliers. 
+        self.cursor.execute("SELECT id FROM HWTT")
+        IDs = [int(num[0]) for num in self.cursor.fetchall()]
+        # Start the progress bar. 
+        if len(IDs) == 0:
+            return
+        self.ProgressDialog = QProgressDialog("Re-running the Database. Please wait...", None, 0, 100, self)
+        self.ProgressDialog.setWindowModality(Qt.WindowModal)       # Freeze the main window.
+        self.ProgressDialog.setMinimumDuration(0)
+        self.ProgressDialog.setValue(0)
+        QApplication.processEvents()
+        # Iterate over the "id" values, read the data, and rerun the analysis. 
+        Success, Fail, Outlier, LenIDs = 0, 0, 0, len(IDs)
+        for k, id in enumerate(IDs):
+            Status, msg = self.Rerun_One_Case(id)
+            # Check for the Outlier. 
+            if Status == 0:
+                Outlier += 1
+                self.ProgressDialog.setValue(int((k + 1) / LenIDs * 100))
+                continue
+            elif Status == -1: 
+                print(f'For id={id} Rerun encounter an error: {msg}')
+                Fail += 1
+                self.ProgressDialog.setValue(int((k + 1) / LenIDs * 100))
+                continue
+            else:
+                Success += 1            # update the counter for the successful analysis.
+                self.ProgressDialog.setValue(int((k + 1) / LenIDs * 100))
+            # Commit the changes every 10 iteration. 
+            if (k + 1) % 10 == 0:
+                self.conn.commit()
+        # Commit the changes for the last time. 
+        self.conn.commit()
+        self.ProgressDialog.close()
+        # Showing a message to the user with the analysis results. 
+        QMessageBox.information(self, "Re-run Completed!", 
+                                f"Reruning the analysis for test results in the Database is Completed!\n" + 
+                                f"\tCases specified as outlier: {Outlier}\n" + 
+                                f"\tCases encounter error: {Fail}\n\tCases successfully ran: {Success}") 
+        # Return nothing.
+        return
+    # ------------------------------------------------------------------------------------------------------------------
+    def Rerun_One_Case(self, id):
+        """
+        This function will rerun analysis for one case only. Note that it doesn't have the "conn.commit()".
+
+        Returns:
+            _type_: _description_
+        """
+        # Step 01: Read the raw data. 
+        Columns2Fetch = ['IsOutlier', 'Data', 'Data_shape', 'Data_dtype', 'Valid_Min_Pass', 'Valid_Max_Pass', 
+                            'Is2PPGuided', 'IsOffset',]
+        self.cursor.execute(f'SELECT {", ".join(Columns2Fetch)} FROM HWTT WHERE id = ?', (id, ))
+        row = self.cursor.fetchone()
+        if row[0] == 1:             # Check for the outlier. 
+            return 0, ''            # Status code 0 means this data is outier. 
+        # Convert the binary raw data to np.ndarray. 
+        Arr = Binary_to_Array(row[1], row[2], row[3])
+        Passes = Arr[0, :].astype(np.int64)
+        RutDepth = Arr[1, :].astype(np.float64)
+        # Apply the boundaries.
+        Index = np.where((Passes >= row[4]) & (Passes <= row[5]))[0]
+        X = Passes[Index]
+        Y = RutDepth[Index]
+        # Get the analysis options. 
+        Is2PPGuided = row[6]
+        IsOffset = row[7]
+        # Perform the rut depth offsetting. 
+        if IsOffset: 
+            Y -= Y[0]
+        # Check for the NaN values. 
+        Index = np.where((~ np.isnan(X)) & (~ np.isnan(Y)))[0]
+        X = X[Index].copy()
+        Y = Y[Index].copy()
+        # ------------------------------------------------------------------------
+        # Step 2: Rerun the analysis. 
+        try:
+            if Is2PPGuided:
+                Res = HWTT_Analysis(X, Y, 1)
+            else:
+                Res = HWTT_Analysis(X, Y, 0)
+            # ------------------------------------------------------------------------
+            # Step 03: Update the database. 
+            # Define the columns to update. 
+            Column2Update = [
+                'TPP_StrippingNumber', 'TPP_Max_Rut_mm', 'TPP_Max_Pass', 'TPP_RuttingAt10k_mm', 'TPP_RuttingAt20k_mm',
+                'TPP_ModelCoeff_a', 'TPP_ModelCoeff_b', 'TPP_ModelCoeff_alpha', 'TPP_ModelCoeff_beta', 'TPP_ModelCoeff_gamma',
+                'TPP_ModelCoeff_Phi', 'TPP_Stripping_Rutting_mm', 'TPP_Stripping_Rutting_Pass', 
+                'TPP_SIP', 'TPP_SIP_Yvalue', 'TPP_SIP_Adj', 'TPP_SIP_Adj_Yvalue',
+                'TPP_CreepLine_Slope', 'TPP_CreepLine_Intercept', 'TPP_StrippingLine_Slope', 'TPP_StrippingLine_Intercept',
+                'TPP_StrippingLine_Slope_Adj', 'TPP_StrippingLine_Intercept_Adj',
+                'Yin_Max_Rut_mm', 'Yin_Max_Pass', 'Yin_RuttingAt10k_mm', 'Yin_RuttingAt20k_mm',
+                'Yin_ModelCoeff_Step1_ro', 'Yin_ModelCoeff_Step1_LCult', 'Yin_ModelCoeff_Step1_beta', 
+                'Yin_ModelCoeff_Step2_RutMax', 'Yin_ModelCoeff_Step2_alpha', 'Yin_ModelCoeff_Step2_lambda', 
+                'Yin_ModelCoeff_Step3_Eps0', 'Yin_ModelCoeff_Step3_theta', 
+                'Yin_Stripping_Rutting_mm', 'Yin_Stripping_Rutting_Pass', 
+                'Yin_SIP', 'Yin_SIP_Yvalue', 'Yin_SIP_Adj', 'Yin_SIP_Adj_Yvalue', 'Yin_StrippingNumber', 
+                'Yin_CreepLine_Slope', 'Yin_CreepLine_Intercept', 'Yin_StrippingLine_Slope', 'Yin_StrippingLine_Intercept',
+                'Yin_StrippingLine_Slope_Adj', 'Yin_StrippingLine_Intercept_Adj',
+                'Yin_Parameter_LCSN', 'Yin_Parameter_LCST', 'Yin_Parameter_DeltaEpsAt10k',
+                'Poly6_Max_Rut_mm', 'Poly6_Max_Pass', 'Poly6_RuttingAt10k_mm', 'Poly6_RuttingAt20k_mm', 
+                'Poly6_ModelCoeff_a0', 'Poly6_ModelCoeff_a1', 'Poly6_ModelCoeff_a2', 'Poly6_ModelCoeff_a3',
+                'Poly6_ModelCoeff_a4', 'Poly6_ModelCoeff_a5', 'Poly6_ModelCoeff_a6', 
+                'Poly6_Stripping_Rutting_mm', 'Poly6_Stripping_Rutting_Pass', 'Poly6_StrippingNumber', 
+                'Poly6_CreepLine_Slope', 'Poly6_CreepLine_Intercept', 
+                'Fnk_Max_Rut_mm', 'Fnk_Max_Pass', 'Fnk_RuttingAt10k_mm', 'Fnk_RuttingAt20k_mm', 
+                'Fnk_ModelCoeff_A', 'Fnk_ModelCoeff_B', 'Fnk_ModelCoeff_C', 'Fnk_ModelCoeff_D', 
+                'Fnk_Stripping_Rutting_mm', 'Fnk_Stripping_Rutting_Pass', 'Fnk_StrippingNumber', 
+                'Fnk_SIP', 'Fnk_SIP_Yvalue', 'Fnk_SIP_Adj', 'Fnk_SIP_Adj_Yvalue',
+                'Fnk_CreepLine_Slope', 'Fnk_CreepLine_Intercept', 'Fnk_StrippingLine_Slope', 'Fnk_StrippingLine_Intercept',
+                'Fnk_StrippingLine_Slope_Adj', 'Fnk_StrippingLine_Intercept_Adj', 
+            ]
+            # Updating SQL command. 
+            self.cursor.execute(f'UPDATE HWTT SET {", ".join([f"{col} = ?" for col in Column2Update])} WHERE id = ?', (
+                CleanVal(Res["2PP"]["Stripping_Number"], int), 
+                CleanVal(Res["2PP"]["Maximum_Rutting_mm"], float), CleanVal(Res["2PP"]["Maximum_Passes"], int), 
+                CleanVal(Res["2PP"]["Rutting@10k_mm"], float), CleanVal(Res["2PP"]["Rutting@20k_mm"], float), 
+                CleanVal(Res["2PP"]["Rutting_PowerModel_Coeff"][0], float),
+                CleanVal(Res["2PP"]["Rutting_PowerModel_Coeff"][1], float),
+                CleanVal(Res["2PP"]["Rutting_PowerModel_Part2_Coeff"][0], float),
+                CleanVal(Res["2PP"]["Rutting_PowerModel_Part2_Coeff"][1], float),
+                CleanVal(Res["2PP"]["Rutting_PowerModel_Part2_Coeff"][2], float),
+                CleanVal(Res["2PP"]["Rutting_PowerModel_Part2_Coeff"][3], float),
+                CleanVal(Res["2PP"]["Stripping_Rutting_mm"], float), 
+                CleanVal(Res["2PP"]["Stripping_Rutting_Pass"], int),
+                CleanVal(Res["2PP"]["SIP"], int), CleanVal(Res["2PP"]["SIP_Yval_mm"], float),
+                CleanVal(Res["2PP"]["SIP_Adj"], int), CleanVal(Res["2PP"]["SIP_Adj_Yval_mm"], float),
+                CleanVal(Res["2PP"]["CreepLine"][0], float), CleanVal(Res["2PP"]["CreepLine"][1], float),
+                CleanVal(Res["2PP"]["TangentLine"][0], float), CleanVal(Res["2PP"]["TangentLine"][1], float),
+                CleanVal(Res["2PP"]["TangentLine_Adj"][0], float), 
+                CleanVal(Res["2PP"]["TangentLine_Adj"][1], float),
+                CleanVal(Res["Yin"]["Maximum_Rutting_mm"], float), CleanVal(Res["Yin"]["Maximum_Passes"], int),
+                CleanVal(Res["Yin"]["Rutting@10k_mm"], float), CleanVal(Res["Yin"]["Rutting@20k_mm"], float),
+                CleanVal(Res["Yin"]["Rutting_Step1_Coeff"][0], float), 
+                CleanVal(Res["Yin"]["Rutting_Step1_Coeff"][1], float),
+                CleanVal(Res["Yin"]["Rutting_Step1_Coeff"][2], float),
+                CleanVal(Res["Yin"]["Rutting_Step2_Coeff"][0], float),
+                CleanVal(Res["Yin"]["Rutting_Step2_Coeff"][1], float),
+                CleanVal(Res["Yin"]["Rutting_Step2_Coeff"][2], float),
+                CleanVal(Res["Yin"]["Rutting_Step3_Coeff"][0], float),
+                CleanVal(Res["Yin"]["Rutting_Step3_Coeff"][1], float),
+                CleanVal(Res["Yin"]["Stripping_Rutting_mm"], float), 
+                CleanVal(Res["Yin"]["Stripping_Rutting_Pass"], int),
+                CleanVal(Res["Yin"]["SIP"], int), CleanVal(Res["Yin"]["SIP_Yval_mm"], float),
+                CleanVal(Res["Yin"]["SIP_Adj"], int), CleanVal(Res["Yin"]["SIP_Adj_Yval_mm"], float),
+                CleanVal(Res["Yin"]["Stripping_Number"], int), 
+                CleanVal(Res["Yin"]["CreepLine"][0], float), CleanVal(Res["Yin"]["CreepLine"][1], float),
+                CleanVal(Res["Yin"]["TangentLine"][0], float), CleanVal(Res["Yin"]["TangentLine"][1], float),
+                CleanVal(Res["Yin"]["TangentLine_Adj"][0], float),
+                CleanVal(Res["Yin"]["TangentLine_Adj"][1], float),
+                CleanVal(Res["Yin"]["LCSN"], float), CleanVal(Res["Yin"]["LCST"], float),
+                CleanVal(Res["Yin"]["DeltaEps@10k"], float),
+                CleanVal(Res["6deg"]["Maximum_Rutting_mm"], float), CleanVal(Res["6deg"]["Maximum_Passes"], int),
+                CleanVal(Res["6deg"]["Rutting@10k_mm"], float), CleanVal(Res["6deg"]["Rutting@20k_mm"], float),
+                CleanVal(Res["6deg"]["Rutting_6degPolynomial_Coeff"][6], float),
+                CleanVal(Res["6deg"]["Rutting_6degPolynomial_Coeff"][5], float),
+                CleanVal(Res["6deg"]["Rutting_6degPolynomial_Coeff"][4], float),
+                CleanVal(Res["6deg"]["Rutting_6degPolynomial_Coeff"][3], float),
+                CleanVal(Res["6deg"]["Rutting_6degPolynomial_Coeff"][2], float),
+                CleanVal(Res["6deg"]["Rutting_6degPolynomial_Coeff"][1], float),
+                CleanVal(Res["6deg"]["Rutting_6degPolynomial_Coeff"][0], float),
+                CleanVal(Res["6deg"]["Stripping_Rutting_mm"], float), 
+                CleanVal(Res["6deg"]["Stripping_Rutting_Pass"], int),
+                CleanVal(Res["6deg"]["Stripping_Number"], int), 
+                CleanVal(Res["6deg"]["CreepLine"][0], float), CleanVal(Res["6deg"]["CreepLine"][1], float),
+                CleanVal(Res["Fnk"]["Maximum_Rutting_mm"], float), CleanVal(Res["Fnk"]["Maximum_Passes"], int),
+                CleanVal(Res["Fnk"]["Rutting@10k_mm"], float), CleanVal(Res["Fnk"]["Rutting@20k_mm"], float),
+                CleanVal(Res["Fnk"]["Rutting_Francken_Coeff"][0], float), 
+                CleanVal(Res["Fnk"]["Rutting_Francken_Coeff"][1], float),
+                CleanVal(Res["Fnk"]["Rutting_Francken_Coeff"][2], float),
+                CleanVal(Res["Fnk"]["Rutting_Francken_Coeff"][3], float),
+                CleanVal(Res["Fnk"]["Stripping_Rutting_mm"], float),
+                CleanVal(Res["Fnk"]["Stripping_Rutting_Pass"], int),
+                CleanVal(Res["Fnk"]["Stripping_Number"], int), 
+                CleanVal(Res["Fnk"]["SIP"], int), CleanVal(Res["Fnk"]["SIP_Yval_mm"], float),
+                CleanVal(Res["Fnk"]["SIP_Adj"], int), CleanVal(Res["Fnk"]["SIP_Adj_Yval_mm"], float),
+                CleanVal(Res["Fnk"]["CreepLine"][0], float), CleanVal(Res["Fnk"]["CreepLine"][1], float),
+                CleanVal(Res["Fnk"]["TangentLine"][0], float), CleanVal(Res["Fnk"]["TangentLine"][1], float),
+                CleanVal(Res["Fnk"]["TangentLine_Adj"][0], float), 
+                CleanVal(Res["Fnk"]["TangentLine_Adj"][1], float),
+                id,
+            ))
+        except Exception as err:
+            return -1, err              # Status code -1 means either rerun or saving ran into error. 
+        # Otherwise, return success. 
+        return 1, ''                    # Status code 1 means the code ran successfully. 
+    # ------------------------------------------------------------------------------------------------------------------
+    def fmt(self, val, format=',.2f'):
+        """
+        This is the format handler function which simply converts the number into string with specified number of 
+        decimal points. 
+
+        Args:
+            val (_type_): _description_
+            precision (int, optional): _description_. Defaults to 2.
+        """
+        try: 
+            if val is None or np.isnan(val):
+                return "-"
+            return f"{val:{format}}"
+        except:
+            return "-"
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================
@@ -2244,9 +2905,9 @@ if __name__ == '__main__':
 
     app = QApplication(sys.argv)
     # Connect to a SQL database. 
-    conn = sqlite3.connect("C:\\Users\\SF.Abdollahi.ctr\\OneDrive - DOT OST\\GitHub_HWTT_Analysis_Tool\\HWTT_Analysis_Tool\\example\\PTF5_DB.db")
+    conn = sqlite3.connect("C:\\Users\\Farhad.Abdollahi.ctr\\OneDrive - DOT OST\\GitHub_Projects\\AutoHWTT\\AutoHWTT_SourceCode\\example\\PTF5_DB_New.db")
     cursor = conn.cursor()
-    Main = Main_Window(conn, cursor, 'PTF5_DB.db', 'C:\\Users\\SF.Abdollahi.ctr\\OneDrive - DOT OST\\GitHub_HWTT_Analysis_Tool\\HWTT_Analysis_Tool\\example')
+    Main = Main_Window(conn, cursor, 'PTF5_DB_New.db', 'C:\\Users\\Farhad.Abdollahi.ctr\\OneDrive - DOT OST\\GitHub_Projects\\AutoHWTT\\AutoHWTT_SourceCode\\example')
     Main.show()
     app.exec()
 

@@ -348,8 +348,9 @@ def HWTT_Analysis_Francken(X, Y, SN_est):
     if StripRut < 0: 
         StripRut = 0
     # Calculating the SN and SIP. 
-    SlopeFrancken = Derivative_Francken_Model(X, A, B, C, D)
-    SN = X[np.argmin(SlopeFrancken)]                # Estimated SN based on fitted Francken model. 
+    Xrange = np.arange(1, X.max() + 1)
+    SlopeFrancken = Derivative_Francken_Model(Xrange, A, B, C, D)
+    SN = Xrange[np.argmin(SlopeFrancken)]               # Estimated SN based on fitted Francken model. 
     CreepSlope = Derivative_Francken_Model(SN, A, B, C, D)
     TangentSlope = Derivative_Francken_Model(X.max(), A, B, C, D)
     CreepLine = [CreepSlope, Francken_Model(SN, A, B, C, D) - SN * CreepSlope]

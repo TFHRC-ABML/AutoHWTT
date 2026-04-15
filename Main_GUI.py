@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import QApplication, QPushButton, QVBoxLayout, QHBoxLayout,
 from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtCore import Qt
 from scripts.Alg01_UtilityFunctions import ScrollableMessageBox
-from scripts.Alg02_SQL_Manager import Create_SQLite3_HWTT_DB_Connect
+from scripts.Alg02_SQL_Manager import Create_SQLite3_HWTT_DB_Connect, Check_Columns_within_DB
 from scripts.GUI01_HWTT_Welcome import HWTT_WelcomePage
 from scripts.GUI02_MainPage import Main_Window
 
@@ -38,6 +38,8 @@ def main():
     # ------------------------------------------------------------------------------------------------------------------
     # Step 02: Check if the database is already existed (load the database) or create a new database.
     if os.path.isfile(os.path.join(DB_Folder, DB_FileName + '.db')):
+        # Check the currently existed columns in the database and add columns if needed. 
+        check = Check_Columns_within_DB(os.path.join(DB_Folder, DB_FileName + '.db'))
         # Load the database. 
         conn = sqlite3.connect(os.path.join(DB_Folder, DB_FileName + '.db'))
         cursor = conn.cursor()

@@ -265,3 +265,25 @@ def ResourcePath(relative_path):
     else:
         # Use the relative path during development
         return os.path.join(os.path.abspath(relative_path))
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def CleanVal(val, dtype=float):
+    """
+    Returning None in case the value is not an integer or float. 
+
+    Args:
+        val (_type_): _description_
+        dtype (_type_, optional): _description_. Defaults to float.
+    """
+    try:
+        if val is None or (isinstance(val, (float, np.floating)) and np.isnan(val)):
+            return None
+        return dtype(val)
+    except (ValueError, TypeError):
+        return None
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================

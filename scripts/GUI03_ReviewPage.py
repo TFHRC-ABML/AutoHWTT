@@ -527,6 +527,7 @@ class DB_ReviewPage(QMainWindow):
         """
         This function changes the stack view from the Review page to the Main page. 
         """
+        self.shared_data.data = -1      # set the shared data to -1, so that the Main Page is ready for new input. 
         self.stack.setCurrentIndex(0)  # Switch to the first page, Main page.
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Update_CurrentSelection(self, selected, deselected):
@@ -597,15 +598,50 @@ class DB_ReviewPage(QMainWindow):
                 print("Ignore")
                 return
     # ------------------------------------------------------------------------------------------------------------------
+    def Check_Row_Selection(self, ActionLabel):
+        """
+        This function checks if a row from the table is selected and have valid data in it. Then, it will return the 
+        row index and "id" of the selected row. 
+        """
+        # Find the selected index. 
+        SelectedIndices = self.Table.selectionModel().selectedIndexes()
+        if len(SelectedIndices) == 0:           
+            # Nothing is selected. 
+            QMessageBox.critical(self, "Data Selection Error!", 
+                                 f"Row was not selected. Please first select the row you want to {ActionLabel} " + 
+                                 f"from the database.")
+            return -1, -1
+        idx = SelectedIndices[0].row()
+        # Check the id value. 
+        LastColIndex = self.Table.columnCount() - 1
+        ID = self.Table.item(idx, LastColIndex)
+        if ID == None or ID.text() == '':
+            # Table is empty. 
+            QMessageBox.critical(self, "Data Selection Error!",
+                                 f"Selected row ({idx + 1}) is empty. Please first fetch the data using the " +
+                                 f'"Search and Filter" section, then select the intended row to {ActionLabel}, and ' + 
+                                 f'then click the corresponding button.')
+            return -1, -1
+        else:
+            # Return the row index and database "id" value correspond to the selected row. 
+            return idx, int(ID.text())
+    # ------------------------------------------------------------------------------------------------------------------
     def Function_Modify_Record(self):
-        QMessageBox.critical(
-            self, "Function Unavailable!", 
-            f'Corresponding function for "Modify" button is currently under developement and will be available in ' + 
-            f'the next version, soon. Unfortunately, you cannot use this button at the moment. In case you need ' + 
-            f'to modify your valid boundary selections, please use the "Delete Record" button to permanently delete ' + 
-            f'the intended test result, and add it again to the Database. If you do not access the raw HWTT results, ' +
-            f'you can first export that individual record, and regenerate the input using the templates provided by ' +
-            f'clicking on "Template" button. Apologize for the inconvenience.')
+        # Find the selected index. 
+        idx, ID = self.Check_Row_Selection(ActionLabel='modify')
+        if (ID == -1) or (idx == -1):
+            return
+        # Call Stack 3 and send the ID.
+        self.shared_data.data = ID
+        self.stack.setCurrentIndex(0)
+        # QMessageBox.critical(
+        #     self, "Function Unavailable!", 
+        #     f'Corresponding function for "Modify" button is currently under developement and will be available in ' + 
+        #     f'the next version, soon. Unfortunately, you cannot use this button at the moment. In case you need ' + 
+        #     f'to modify your valid boundary selections, please use the "Delete Record" button to permanently delete ' + 
+        #     f'the intended test result, and add it again to the Database. If you do not access the raw HWTT results, ' +
+        #     f'you can first export that individual record, and regenerate the input using the templates provided by ' +
+        #     f'clicking on "Template" button. Apologize for the inconvenience.')
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Button_Export_Individual(self):
         """
@@ -670,6 +706,7 @@ class DB_ReviewPage(QMainWindow):
         # Define some styles. 
         Info_fill       = PatternFill(start_color="FFE989", end_color="FFCC00", fill_type="solid")
         TPP_fill        = PatternFill(start_color="A7E2FF", end_color="A7E2FF", fill_type="solid")
+        Fnk_fill        = PatternFill(start_color="E6E6FA", end_color="E6E6FA", fill_type="solid")
         Yin_fill        = PatternFill(start_color="F4FEBA", end_color="F4FEBA", fill_type="solid")
         Poly_fill       = PatternFill(start_color="FDBBBB", end_color="FDBBBB", fill_type="solid")
         Data_Fill       = PatternFill(start_color="DFDED9", end_color="DFDED9", fill_type="solid")
@@ -874,6 +911,53 @@ class DB_ReviewPage(QMainWindow):
             # Write the value. 
             cell1 = ws.cell(row=i, column=2, value=value)
             cell1.fill = Poly_fill
+            cell1.border = cell_border
+            cell1.font = cell_font
+            cell1.alignment = left_alignment
+        NextRowIndex = i + 2
+        # ------------------------------------------------------
+        # Go to the Francken model results.
+        ColNames_Fnk = [
+            'Fnk_StrippingNumber', 'Fnk_RuttingAt10k_mm', 'Fnk_RuttingAt20k_mm', 
+            'Fnk_ModelCoeff_A', 'Fnk_ModelCoeff_B', 'Fnk_ModelCoeff_C', 'Fnk_ModelCoeff_D', 
+            'Fnk_Stripping_Rutting_mm', 'Fnk_SIP', 'Fnk_SIP_Yvalue', 'Fnk_SIP_Adj', 'Fnk_SIP_Adj_Yvalue', 
+            'Fnk_CreepLine_Slope', 'Fnk_CreepLine_Intercept', 'Fnk_StrippingLine_Slope', 'Fnk_StrippingLine_Intercept', 
+            'Fnk_StrippingLine_Slope_Adj', 'Fnk_StrippingLine_Intercept_Adj']
+        Labels_Fnk = [
+            'Stripping number (SN)', 'Rutting @ 10k passes (mm)', 'Rutting @ 20k passes (mm)', 
+            'Model coefficient, A', 'Model coefficient, B', 'Model coefficient, C', 'Model coefficient, D', 
+            'Stripping rutting (mm)', 'SIP', 'Rutting @ SIP (mm)', 'Adjusted SIP (@ 12.5 mm rutting)', 'Rutting @ adjusted SIP', 
+            'Creep line slope', 'Creep line intercept (mm)', 'Stripping line slope', 'Stripping line intercept (mm)', 
+            'Adjusted stripping line slope', 'Adjusted stripping line intercept (mm)']
+        self.cursor.execute(f'SELECT {", ".join(ColNames_Fnk)} FROM HWTT WHERE id = ?', (ID,))
+        Values_Fnk = list(self.cursor.fetchone())
+        # ------------------------------------------------------
+        # Write the General information. 
+        ws.merge_cells(f'A{NextRowIndex}:B{NextRowIndex}')
+        cell = ws.cell(row=NextRowIndex, column=1, value='Francken Model')
+        cell.fill = Fnk_fill
+        cell.border = cell_border
+        cell.font = Font(name="Arial", size=13, bold=True, color="000000")
+        cell.alignment = center_alignment
+        for i in range(1, 4):
+            for j in range(2):
+                cell1 = ws.cell(row=NextRowIndex+i, column=j+1, value='')
+                cell1.fill = Fnk_fill
+        # Put the image. 
+        Image_Obj = Read_Resize_Image(ResourcePath(os.path.join(".", "assets", "Francken Equation.png")), 44)
+        ws.add_image(Image_Obj, f"A{NextRowIndex+1}")
+        NextRowIndex += 4
+        # Write the Francken model parameters. 
+        for i, (header, value) in enumerate(zip(Labels_Fnk, Values_Fnk), start=NextRowIndex):
+            # Write the title.
+            cell1 = ws.cell(row=i, column=1, value=header + ':')
+            cell1.fill = Fnk_fill
+            cell1.border = cell_border
+            cell1.font = header_font
+            cell1.alignment = left_alignment
+            # Write the value. 
+            cell1 = ws.cell(row=i, column=2, value=value)
+            cell1.fill = Fnk_fill
             cell1.border = cell_border
             cell1.font = cell_font
             cell1.alignment = left_alignment
